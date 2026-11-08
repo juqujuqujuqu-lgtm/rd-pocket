@@ -328,6 +328,41 @@ table.vt tr.hl td { background: var(--red-soft); }
 .opt.sel .pts { color: var(--blue); }
 .chk .box { width: 1.4rem; height: 1.4rem; border-radius: 50%; border: 1.5px solid var(--label-3); flex: none; display: grid; place-items: center; color: #fff; font-size: .8rem; font-weight: 800; transition: background-color .15s, border-color .15s; }
 .chk.sel .box { background: var(--blue); border-color: var(--blue); }
+.chk .box { color: transparent; }
+.chk.sel .box { color: #fff; }
+.chk.warn.sel .box { background: var(--red); border-color: var(--red); }
+.chk .s { font-size: .8125rem; }
+
+/* ============ Slider (iOS-Stil) ============ */
+.slider-cell { display: block; padding: .85rem 1rem 1rem; }
+.slider-cell .sl-label { font-size: 1.0625rem; letter-spacing: -.01em; margin-bottom: .55rem; }
+.slider-cell .sl-label b { font-weight: 600; font-variant-numeric: tabular-nums; }
+input[type=range].ios {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 2rem; margin: 0; background: transparent; touch-action: none; --p: 50%;
+}
+input[type=range].ios::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--slider-fill) 0 var(--p), var(--fill) var(--p) 100%);
+}
+input[type=range].ios::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 2.4rem; height: 1.6rem; margin-top: calc(2px - .8rem); border-radius: .8rem; background: #fff;
+  box-shadow: 0 .5px 4px rgba(0,0,0,.12), 0 6px 13px rgba(0,0,0,.12); transition: transform .12s ease-out;
+}
+input[type=range].ios:active::-webkit-slider-thumb { transform: scale(1.08); }
+input[type=range].ios::-moz-range-track { height: 4px; border-radius: 2px; background: var(--fill); }
+input[type=range].ios::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--slider-fill); }
+input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border: 0; border-radius: .8rem; background: #fff; box-shadow: 0 .5px 4px rgba(0,0,0,.12), 0 6px 13px rgba(0,0,0,.12); }
+:root { --slider-fill: #e3e9f7; }
+:root[data-theme="light"] { --slider-fill: var(--blue); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --slider-fill: var(--blue); } }
+.result-big { font-size: 1.0625rem; }
+.result-big .val { font-weight: 700 !important; font-size: 1.25rem; color: var(--label) !important; }
+
+/* Pädiatrisches Beurteilungsdreieck */
+.pat-tri { display: block; width: 11rem; margin: .5rem auto 1rem; overflow: visible; }
+.pat-tri line { stroke: var(--green); stroke-width: 7; stroke-linecap: round; transition: stroke .2s; }
+.pat-tri line.bad { stroke: var(--red); }
+.pat-tri text { fill: var(--label-2); font-size: 11px; font-weight: 600; text-anchor: middle; }
 
 /* ============ Sheet ============ */
 .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.4); opacity: 0; }

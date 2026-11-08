@@ -228,4 +228,49 @@ const SCHEMES = [
     ],
     note: "Nur wenn ALLE 5 Kriterien erfüllt sind, ist eine HWS-Verletzung unwahrscheinlich. Ist eines nicht erfüllt → HWS-Verletzung möglich, nach lokalem Algorithmus vorgehen.",
   },
+  {
+    id: "hits", title: "4 H's und HITS", abbr: "HITS", sub: "Reversible Ursachen des Kreislaufstillstands (ERC)",
+    items: [
+      ["H", "Hypoxie", "Atemweg sichern, Beatmung mit 100 % O₂, Tubuslage und Beatmung prüfen (Kapnografie)."],
+      ["H", "Hypovolämie", "Blutung stoppen (Tourniquet, Beckenschlinge), Volumen i.v./i.o."],
+      ["H", "Hypo-/Hyperkaliämie, metabolisch", "Anamnese (Dialyse? Niereninsuffizienz?), BZ messen, BGA wenn verfügbar."],
+      ["H", "Hypo-/Hyperthermie", "Temperatur messen. Hypothermie: Wärmeerhalt, Transport ins ECLS-Zentrum erwägen."],
+      ["H", "Herzbeuteltamponade", "Trauma, Z. n. Herz-OP, Dissektion. Sono wenn verfügbar, Perikardentlastung."],
+      ["I", "Intoxikation", "Auffindesituation, Tabletten, Anamnese. Antidot erwägen, Giftnotruf. Lange reanimieren."],
+      ["T", "Thrombose (koronar / pulmonal)", "Myokardinfarkt → PCI. Lungenembolie → Lyse erwägen, danach CPR 60–90 min fortführen."],
+      ["S", "Spannungspneumothorax", "Einseitig fehlendes Atemgeräusch, gestaute Halsvenen, Trauma. Entlastungspunktion / Thorakostomie."],
+    ],
+    note: "Während der laufenden CPR systematisch abarbeiten. Behandelbare Ursachen frühzeitig erkennen und gezielt therapieren.",
+  },
+  { id: "neuner", title: "Neunerregel", abbr: "9 %", sub: "Verbrennungsausdehnung in % KOF", type: "burn" },
+];
+
+/* Neunerregel nach Wallace – Werte in % Körperoberfläche */
+const BURN_REGIONS = {
+  erw:  [["Kopf und Hals", 9], ["Arm links", 9], ["Arm rechts", 9], ["Rumpf vorne", 18], ["Rumpf hinten", 18], ["Bein links", 18], ["Bein rechts", 18], ["Genitalbereich", 1]],
+  kind: [["Kopf und Hals", 14], ["Arm links", 9], ["Arm rechts", 9], ["Rumpf vorne", 18], ["Rumpf hinten", 18], ["Bein links", 16], ["Bein rechts", 16]],
+  sgl:  [["Kopf und Hals", 18], ["Arm links", 9], ["Arm rechts", 9], ["Rumpf vorne", 18], ["Rumpf hinten", 18], ["Bein links", 14], ["Bein rechts", 14]],
+};
+
+/* Pädiatrisches Beurteilungsdreieck (PAT) – was ist AUFFÄLLIG? */
+const PAT_SIDES = [
+  { id: "a", title: "Aussehen", sub: "TICLS", items: [
+    ["Tonus", "schlaff, kaum Spontanbewegung"],
+    ["Interaktion", "teilnahmslos, kein Interesse an Umgebung / Spielzeug"],
+    ["Beruhigbarkeit", "nicht zu trösten oder zu beruhigen"],
+    ["Blick", "starr, leer, fixiert nicht"],
+    ["Sprache / Schreien", "schwach, heiser, wimmernd oder fehlend"],
+  ] },
+  { id: "b", title: "Atemarbeit", sub: "hören und sehen", items: [
+    ["Abnorme Atemgeräusche", "Stridor, Giemen, Stöhnen / Knorksen, Gurgeln"],
+    ["Einziehungen", "jugulär, interkostal, sternal, subkostal"],
+    ["Nasenflügeln", ""],
+    ["Kopfnicken", "„Head bobbing“ bei Säuglingen"],
+    ["Abnorme Haltung", "Schnüffelposition, Dreifußhaltung, Kutschersitz"],
+  ] },
+  { id: "c", title: "Hautdurchblutung", sub: "Zirkulation", items: [
+    ["Blässe", ""],
+    ["Marmorierung", "fleckige, netzartige Hautzeichnung"],
+    ["Zyanose", "zentral oder peripher"],
+  ] },
 ];

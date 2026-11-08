@@ -37,7 +37,7 @@ const ICON = {
    Motion: Federn, Impuls-Projektion, Rubber-Banding (nach Apple, WWDC 2018)
    ===================================================================== */
 function spring({ from, to, velocity = 0, damping = 1, response = 0.35, onUpdate, onDone }) {
-  if (reducedMotion()) { onUpdate(to); onDone && onDone(); return { stop() {}, get x() { return to; } }; }
+  if (reducedMotion()) { onUpdate(to); onDone && onDone(); return { stop() {}, get x() { return to; }, v: 0, done: true }; }
   const k = (2 * Math.PI / response) ** 2, c = (4 * Math.PI * damping) / response;
   let x = from, v = velocity, last = performance.now(), id = 0, done = false;
   const step = (now) => {
@@ -226,6 +226,7 @@ vp.addEventListener("click", (e) => { if (vp._suppressClick) { e.stopPropagation
 /* Push / Pop mit Feder + Wisch-zurück vom linken Rand (interruptible) */
 function pushPage(build, nav) {
   const base = vp.lastElementChild, sy = scrollY, W = innerWidth;
+  if (base._anim && !base._anim.done) return; // Doppeltipp während der Animation ignorieren
   base._nav = currentNav; base._sy = sy;
   Object.assign(base.style, { position: "fixed", top: -sy + "px", left: 0, right: 0 });
   const p = h(`<div class="page" style="position:relative;z-index:2;box-shadow:-12px 0 32px rgba(0,0,0,.28);touch-action:pan-y"></div>`);
@@ -254,7 +255,7 @@ function attachEdgeSwipe(p) {
     if (e.clientX > 24 && !(p._anim && !p._anim.done)) return;
     p._anim && p._anim.stop();
     drag = { id: e.pointerId, startX: e.clientX, x0: p._x || 0, vt: velocityTracker() };
-    p.setPointerCapture(e.pointerId);
+    try { p.setPointerCapture(e.pointerId); } catch { /* synthetischer Pointer */ }
   });
   p.addEventListener("pointermove", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
@@ -281,12 +282,13 @@ function segmented(options, current, onChange) {
   const thumb = $(".thumb", el);
   let pos = options.findIndex(([k]) => k === current), anim = null;
   const place = (i) => { pos = i; thumb.style.transform = `translateX(${i * 100}%)`; };
-  place(pos);
+  if (pos < 0) thumb.style.opacity = "0"; else place(pos);
   $$("button", el).forEach((b, i) => b.addEventListener("pointerdown", () => {
     if (b.classList.contains("active")) return;
     $$("button", el).forEach((x) => x.classList.toggle("active", x === b));
     anim && anim.stop();
-    anim = spring({ from: pos, to: i, damping: 1, response: 0.3, onUpdate: place });
+    if (pos < 0) { place(i); thumb.style.opacity = ""; }
+    else anim = spring({ from: pos, to: i, damping: 1, response: 0.3, onUpdate: place });
     onChange(b.dataset.k);
   }));
   return el;
@@ -1003,6 +1005,7 @@ RENDER.kinder = (p) => {
   const s = store.get("kidAge", { val: "", unit: "J" });
   p.innerHTML = `
     <h1 class="large-title">Kinder</h1>
+    <div class="group"><div class="cell tappable" id="kPat"><div class="letter sm">PAT</div><div class="grow"><div class="t">Pädiatrisches Beurteilungsdreieck</div><div class="s">Aussehen · Atemarbeit · Hautdurchblutung</div></div><span class="chev">›</span></div></div>
     <div class="section-header">Rechner nach Alter</div>
     <div class="age-row">
       <input class="age-input" type="number" inputmode="decimal" id="kAge" placeholder="Alter" value="${esc(s.val)}">
@@ -1049,6 +1052,7 @@ RENDER.kinder = (p) => {
     const g = (arr) => `<div class="group kv">${arr.map(([k, v]) => `<div class="cell"><div class="grow t">${k}</div><div class="val">${v}</div></div>`).join("")}</div>`;
     out.innerHTML = `<div class="section-header">Werte</div>${g(items)}<div class="section-header">Reanimation · 15 : 2</div>${g(drugs)}`;
   };
+  $("#kPat", p).addEventListener("click", () => pushPage((pg) => renderPat(pg), detailNav("Beurteilungsdreieck", "Kinder")));
   $("#kAge", p).addEventListener("input", calc);
   $("#kKg", p).addEventListener("input", calc);
   calc();
@@ -1086,7 +1090,180 @@ const CALCS = [
     "Schock (hämodynamisch instabil) – Pflicht", "Kinematik passend", "Inspektion auffällig", "Palpation auffällig", "Schmerzen im Becken",
   ], interpret: (n, t, sel) => (sel[0] && n >= 2 ? "Indikation zur Beckenschlinge gegeben" : !sel[0] ? "Kein Schock – keine Indikation nach S-KIPS" : "Schock, aber noch kein weiteres Kriterium") },
   { id: "si", title: "Schockindex", sub: "HF ÷ RR systolisch", type: "si" },
+  { id: "o2", title: "Sauerstoffrechner", sub: "Flascheninhalt und Reichweite", type: "o2" },
+  { id: "map", title: "Mittlerer arterieller Blutdruck", sub: "MAD aus Systole und Diastole", type: "map" },
+  { id: "ccsr", title: "Canadian C-Spine Rule", sub: "HWS-Immobilisation / Bildgebung nötig?", type: "ccsr" },
 ];
+
+/* Slider-Zeile im iOS-Stil: diskrete Werte, Beschriftung „Label: Wert“ */
+function sliderCell(label, values, value, fmt, onChange) {
+  let i = Math.max(0, values.indexOf(value));
+  const el = h(`<div class="cell slider-cell"><div class="sl-label">${esc(label)}: <b></b></div>
+    <input type="range" class="ios" min="0" max="${values.length - 1}" step="1" value="${i}" aria-label="${esc(label)}"></div>`);
+  const inp = $("input", el), out = $("b", el);
+  const paint = () => { out.textContent = fmt(values[i]); inp.style.setProperty("--p", (i / (values.length - 1)) * 100 + "%"); };
+  inp.addEventListener("input", () => { const n = +inp.value; if (n !== i) { i = n; paint(); onChange(values[i]); } });
+  paint();
+  return el;
+}
+const range = (a, b, s = 1) => Array.from({ length: Math.round((b - a) / s) + 1 }, (_, k) => +(a + k * s).toFixed(2));
+const deNum = (x, d = 0) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
+
+function renderO2(p, head) {
+  const st = store.get("o2calc", { size: 10, bar: 200, flow: 10 });
+  p.innerHTML = head + `<div class="section-header">Berechnung des Flascheninhalts</div><div class="group" id="g1"></div>
+    <div class="section-header">Berechnung des Sauerstoffverbrauchs</div><div class="group" id="g2"></div>
+    <p class="section-footer">Inhalt = Flaschengröße × Druck. Rechnung bis zur leeren Flasche – Restdruck als Reserve einplanen und rechtzeitig wechseln.</p>`;
+  const vol = h(`<div class="cell result-big"><div class="grow">Gesamtvolumen:</div><div class="val"></div></div>`);
+  const dur = h(`<div class="cell result-big"><div class="grow">Sauerstoff für circa:</div><div class="val"></div></div>`);
+  const upd = () => {
+    store.set("o2calc", st);
+    const v = st.size * st.bar, min = Math.floor(v / st.flow), hh = Math.floor(min / 60), mm = min % 60;
+    $(".val", vol).textContent = `${deNum(v)} Liter`;
+    $(".val", dur).textContent = v <= 0 ? "kein Vorrat"
+      : hh ? `${hh} ${hh === 1 ? "Stunde" : "Stunden"}${mm ? ` ${mm} Min.` : ""}` : `${mm} ${mm === 1 ? "Minute" : "Minuten"}`;
+  };
+  $("#g1", p).append(
+    sliderCell("Flaschengröße", [0.8, 1, 2, 2.5, 3, 5, 10, 11], st.size, (x) => `${deNum(x, 1)} Liter`, (x) => { st.size = x; upd(); }),
+    sliderCell("Flaschendruck", range(0, 300, 10), st.bar, (x) => `${x} bar`, (x) => { st.bar = x; upd(); }), vol);
+  $("#g2", p).append(
+    sliderCell("Flow", [0.5, ...range(1, 15), 20, 25], st.flow, (x) => `${deNum(x, 1)} l/min`, (x) => { st.flow = x; upd(); }), dur);
+  upd();
+}
+
+function renderMap(p, head) {
+  const st = store.get("mapcalc", { sys: 120, dia: 80 });
+  p.innerHTML = head + `<div class="section-header">Berechnung</div><div class="group" id="g1"></div>
+    <div class="section-header">Ergebnis</div><div class="group kv" id="g2"></div>
+    <p class="section-footer">MAD ≈ Diastole + (Systole − Diastole) ÷ 3. Für eine ausreichende Organperfusion wird meist ein MAD ≥ 65 mmHg angestrebt.</p>`;
+  const res = h(`<div class="cell result-big"><div class="grow">MAD:</div><div class="val"></div></div>`);
+  const txt = h(`<div class="cell"><div class="grow s" style="margin:0"></div></div>`);
+  const upd = () => {
+    store.set("mapcalc", st);
+    if (st.dia > st.sys) { $(".val", res).textContent = "–"; $(".grow", txt).textContent = "Diastole größer als Systole – Werte prüfen"; return; }
+    const m = st.dia + (st.sys - st.dia) / 3;
+    $(".val", res).textContent = `${deNum(m, 1)} mmHg`;
+    const [c, t] = m < 65 ? ["var(--red)", "Erniedrigt – Organperfusion gefährdet"] : m > 105 ? ["var(--orange)", "Erhöht"] : ["var(--green)", "Im Zielbereich (65–105 mmHg)"];
+    Object.assign($(".grow", txt), { textContent: t }); $(".grow", txt).style.color = c;
+  };
+  $("#g1", p).append(
+    sliderCell("Systole", range(40, 250), st.sys, (x) => `${x} mmHg`, (x) => { st.sys = x; upd(); }),
+    sliderCell("Diastole", range(20, 150), st.dia, (x) => `${x} mmHg`, (x) => { st.dia = x; upd(); }));
+  $("#g2", p).append(res, txt);
+  upd();
+}
+
+const CCSR_HIGH = [
+  ["Alter ≥ 65 Jahre", ""],
+  ["Gefährlicher Unfallmechanismus", "Sturz ≥ 1 m bzw. 5 Stufen, axiale Stauchung (z. B. Kopfsprung), Hochrasanz > 100 km/h, Überschlag, Herausschleudern, Quad-/Motorradunfall, Fahrradkollision"],
+  ["Parästhesien in den Extremitäten", ""],
+];
+const CCSR_LOW = [
+  ["Einfacher Auffahrunfall", "nicht: in Gegenverkehr geschoben, von Bus/Lkw getroffen, Überschlag, Hochgeschwindigkeit"],
+  ["Sitzend angetroffen", ""],
+  ["Zu irgendeinem Zeitpunkt gehfähig", ""],
+  ["Nackenschmerz erst verzögert aufgetreten", ""],
+  ["Kein Druckschmerz über der HWS-Mittellinie", ""],
+];
+function renderCcsr(p, head) {
+  const hi = CCSR_HIGH.map(() => false), lo = CCSR_LOW.map(() => false);
+  let rot = null;
+  const list = (arr, key, warn) => `<div class="group">${arr.map(([t, s], i) => `<div class="cell tappable chk${warn ? " warn" : ""}" data-k="${key}" data-i="${i}"><span class="box">✓</span><div class="grow"><div class="t">${esc(t)}</div>${s ? `<div class="s">${esc(s)}</div>` : ""}</div></div>`).join("")}</div>`;
+  p.innerHTML = head + `<div class="score-bar"><div class="st" id="cTxt"></div><div class="sv" id="cV" style="font-size:1.75rem"></div></div>
+    <div class="section-header">1 · Hochrisikofaktor vorhanden?</div>${list(CCSR_HIGH, "hi", true)}
+    <div class="section-header">2 · Niedrigrisikofaktor vorhanden?</div>${list(CCSR_LOW, "lo", false)}
+    <p class="section-footer">Mindestens einer muss zutreffen, damit die Beweglichkeit sicher geprüft werden kann.</p>
+    <div id="step3"><div class="section-header">3 · Aktive Rotation 45° nach links und rechts möglich?</div><div id="rotSeg"></div>
+    <p class="section-footer">Patient dreht den Kopf selbst – nicht passiv bewegen.</p></div>
+    <div class="notice"><span class="ico">ⓘ</span><span>Gilt nur für wache (GCS 15), stabile Patient:innen ab 16 Jahren nach stumpfem Trauma. Nicht anwendbar bei penetrierendem Trauma, akuter Lähmung, bekannter WS-Erkrankung oder Schwangerschaft.</span></div>
+    <button class="btn block" id="cReset" style="margin-top:1.5rem">Zurücksetzen</button>`;
+  const segWrap = $("#rotSeg", p);
+  const mkSeg = () => { segWrap.innerHTML = ""; const s = segmented([["ja", "Ja"], ["nein", "Nein"]], rot, (k) => { rot = k; haptic(); upd(); }); s.style.margin = "0"; segWrap.append(s); };
+  const upd = () => {
+    const anyHi = hi.some(Boolean), anyLo = lo.some(Boolean);
+    $("#step3", p).style.opacity = anyHi || !anyLo ? ".4" : "1";
+    $("#step3", p).style.pointerEvents = anyHi || !anyLo ? "none" : "";
+    let txt, ok = null;
+    if (anyHi) { txt = "Hochrisiko → Immobilisation / Bildgebung"; ok = false; }
+    else if (!anyLo) txt = "Kein Hochrisiko. Gibt es einen Niedrigrisikofaktor? (sonst Immobilisation)";
+    else if (!rot) txt = "Jetzt aktive Rotation prüfen";
+    else if (rot === "nein") { txt = "Rotation nicht möglich → Immobilisation / Bildgebung"; ok = false; }
+    else { txt = "HWS-Bildgebung nicht erforderlich – Immobilisation verzichtbar"; ok = true; }
+    $("#cTxt", p).textContent = txt;
+    const v = $("#cV", p);
+    v.textContent = ok === null ? "…" : ok ? "✓" : "!";
+    v.style.color = ok === null ? "var(--label-2)" : ok ? "var(--green)" : "var(--red)";
+  };
+  $$(".chk", p).forEach((o) => o.addEventListener("click", () => {
+    const arr = o.dataset.k === "hi" ? hi : lo; arr[+o.dataset.i] = !arr[+o.dataset.i];
+    o.classList.toggle("sel"); haptic(); upd();
+  }));
+  $("#cReset", p).addEventListener("click", () => { hi.fill(false); lo.fill(false); rot = null; $$(".chk", p).forEach((x) => x.classList.remove("sel")); mkSeg(); upd(); scrollTo({ top: 0, behavior: "smooth" }); });
+  mkSeg(); upd();
+}
+
+/* Neunerregel – Regionen antippen, Summe in % KOF */
+function renderBurn(p, s) {
+  let age = "erw", palms = 0;
+  const sel = new Set();
+  p.innerHTML = `<h1 class="large-title">${esc(s.title)}</h1><p class="subtitle">${esc(s.sub)}</p>
+    <div class="score-bar"><div class="st" id="bTxt">Verbrannte Regionen antippen</div><div class="sv" id="bV">0 %</div></div>
+    <div id="bSeg"></div><div class="group" id="bList" style="margin-top:.75rem"></div>
+    <div class="section-header">Kleine Areale</div>
+    <div class="group"><div class="field"><label for="bPalm">Handflächen</label><input id="bPalm" type="number" inputmode="numeric" min="0" placeholder="Anzahl (je ≈ 1 %)"></div></div>
+    <p class="section-footer">Handfläche des Patienten inkl. Finger ≈ 1 % KOF.</p>
+    <div class="notice"><span class="ico">ⓘ</span><span>Nur Verbrennungen ab <b>Grad 2</b> mitzählen – reine Rötung (Grad 1) nicht. Kinder: pro Lebensjahr ab 1 J. Kopf −1 %, jedes Bein +0,5 %; ab ca. 10 J. Erwachsenenwerte. Brandverletztenzentrum v. a. bei großer Ausdehnung oder Beteiligung von Gesicht, Händen, Füßen, Genitalien, Gelenken oder Inhalationstrauma erwägen.</span></div>
+    <button class="btn block" id="bReset" style="margin-top:1.5rem">Zurücksetzen</button>`;
+  const list = $("#bList", p);
+  const draw = () => {
+    list.innerHTML = BURN_REGIONS[age].map(([n, v], i) => `<div class="cell tappable chk warn${sel.has(i) ? " sel" : ""}" data-i="${i}"><span class="box">✓</span><span class="grow t">${esc(n)}</span><span class="val" style="font-variant-numeric:tabular-nums">${v} %</span></div>`).join("");
+    $$(".chk", list).forEach((o) => o.addEventListener("click", () => { const i = +o.dataset.i; sel.has(i) ? sel.delete(i) : sel.add(i); o.classList.toggle("sel"); haptic(); upd(); }));
+  };
+  const upd = () => {
+    const sum = Math.min(100, [...sel].reduce((a, i) => a + BURN_REGIONS[age][i][1], 0) + palms);
+    $("#bV", p).textContent = `${sum} %`;
+    $("#bTxt", p).textContent = sum === 0 ? "Verbrannte Regionen antippen" : `% KOF (Grad 2–3) · ${age === "erw" ? "Erwachsene" : age === "kind" ? "Kind ~ 5 J." : "Säugling"}`;
+  };
+  const seg = segmented([["erw", "Erwachsene"], ["kind", "Kind ~ 5 J."], ["sgl", "Säugling"]], age, (k) => { age = k; sel.clear(); draw(); upd(); });
+  seg.style.margin = "0"; $("#bSeg", p).append(seg);
+  $("#bPalm", p).addEventListener("input", (e) => { palms = Math.max(0, parseInt(e.target.value) || 0); upd(); });
+  $("#bReset", p).addEventListener("click", () => { sel.clear(); palms = 0; $("#bPalm", p).value = ""; draw(); upd(); scrollTo({ top: 0, behavior: "smooth" }); });
+  draw(); upd();
+}
+
+/* Pädiatrisches Beurteilungsdreieck */
+const PAT_RESULT = {
+  "": ["Stabil – weiter mit xABCDE", "var(--green)"],
+  a: ["Primäre ZNS-Störung oder systemisches Problem (z. B. Hypoglykämie, Intoxikation, Krampfanfall, Sepsis)", "var(--orange)"],
+  b: ["Respiratorische Belastung (Distress)", "var(--orange)"],
+  c: ["Kompensierter Schock", "var(--orange)"],
+  ab: ["Respiratorisches Versagen", "var(--red)"],
+  ac: ["Dekompensierter Schock", "var(--red)"],
+  bc: ["Respiratorische Belastung mit Kreislaufzeichen – an Schock denken, engmaschig neu beurteilen", "var(--orange)"],
+  abc: ["Kardiopulmonales Versagen – sofort handeln", "var(--red)"],
+};
+function renderPat(p) {
+  const sel = PAT_SIDES.map((s) => s.items.map(() => false));
+  p.innerHTML = `<h1 class="large-title">Beurteilungsdreieck</h1><p class="subtitle">Pädiatrischer Ersteindruck in wenigen Sekunden – ohne Anfassen</p>
+    <div class="score-bar"><div class="st" id="pTxt"></div></div>
+    <svg class="pat-tri" viewBox="0 0 160 140" aria-hidden="true">
+      <line id="triA" x1="80" y1="12" x2="14" y2="122"/><line id="triB" x1="80" y1="12" x2="146" y2="122"/><line id="triC" x1="14" y1="122" x2="146" y2="122"/>
+      <text x="38" y="66" style="text-anchor:end">Aussehen</text><text x="122" y="66" style="text-anchor:start">Atmung</text><text x="80" y="138">Haut</text></svg>
+    <p class="section-footer" style="margin-top:0;text-align:center">Antippen, was <b>auffällig</b> ist.</p>
+    ${PAT_SIDES.map((s, si) => `<div class="section-header">${esc(s.title)} · ${esc(s.sub)}</div><div class="group">${s.items.map(([t, d], i) => `<div class="cell tappable chk warn" data-s="${si}" data-i="${i}"><span class="box">✓</span><div class="grow"><div class="t">${esc(t)}</div>${d ? `<div class="s">${esc(d)}</div>` : ""}</div></div>`).join("")}</div>`).join("")}
+    <button class="btn block" id="pReset" style="margin-top:1.5rem">Zurücksetzen</button>`;
+  const upd = () => {
+    const bad = PAT_SIDES.map((s, si) => sel[si].some(Boolean));
+    ["triA", "triB", "triC"].forEach((id, i) => $("#" + id, p).classList.toggle("bad", bad[i]));
+    const [t, c] = PAT_RESULT[PAT_SIDES.filter((_, i) => bad[i]).map((s) => s.id).join("")];
+    const el = $("#pTxt", p); el.textContent = t; el.style.color = c;
+  };
+  $$(".chk", p).forEach((o) => o.addEventListener("click", () => {
+    const s = +o.dataset.s, i = +o.dataset.i; sel[s][i] = !sel[s][i]; o.classList.toggle("sel"); haptic(); upd();
+  }));
+  $("#pReset", p).addEventListener("click", () => { sel.forEach((a) => a.fill(false)); $$(".chk", p).forEach((x) => x.classList.remove("sel")); upd(); scrollTo({ top: 0, behavior: "smooth" }); });
+  upd();
+}
 
 RENDER.schema = (p) => {
   setNav(rootNav());
@@ -1094,7 +1271,7 @@ RENDER.schema = (p) => {
   const body = h(`<div></div>`);
   const draw = (b) => {
     b.innerHTML = ui.schemaSeg === "schemata"
-      ? `<div class="group">${SCHEMES.map((s) => `<div class="cell tappable" data-s="${s.id}"><div class="letter sm">${esc(s.title.replace(/[^A-Za-z0-9]/g, "").slice(0, 5))}</div><div class="grow"><div class="t">${esc(s.title)}</div><div class="s">${esc(s.sub)}</div></div><span class="chev">›</span></div>`).join("")}</div>`
+      ? `<div class="group">${SCHEMES.map((s) => `<div class="cell tappable" data-s="${s.id}"><div class="letter sm">${esc(s.abbr || s.title.replace(/[^A-Za-z0-9]/g, "").slice(0, 5))}</div><div class="grow"><div class="t">${esc(s.title)}</div><div class="s">${esc(s.sub)}</div></div><span class="chev">›</span></div>`).join("")}</div>`
       : `<div class="group">${CALCS.map((c) => `<div class="cell tappable" data-c="${c.id}"><div class="grow"><div class="t">${esc(c.title)}</div><div class="s">${esc(c.sub)}</div></div><span class="chev">›</span></div>`).join("")}</div>`;
     $$("[data-s]", b).forEach((r) => r.addEventListener("click", () => {
       const s = SCHEMES.find((x) => x.id === r.dataset.s);
@@ -1110,6 +1287,7 @@ RENDER.schema = (p) => {
 };
 
 function renderSchemeDetail(p, s) {
+  if (s.type === "burn") return renderBurn(p, s);
   p.innerHTML = `<h1 class="large-title">${esc(s.title)}</h1><p class="subtitle">${esc(s.sub)}</p>
     <div class="group">${s.items.map(([l, t, d]) => `<div class="cell scheme-item"><div class="letter">${esc(l)}</div><div class="grow"><div class="t">${esc(t)}</div><div class="s">${esc(d)}</div></div></div>`).join("")}</div>
     ${s.note ? `<div class="notice"><span class="ico">ⓘ</span><span>${esc(s.note)}</span></div>` : ""}`;
@@ -1117,6 +1295,9 @@ function renderSchemeDetail(p, s) {
 
 function renderCalc(p, c) {
   const head = `<h1 class="large-title">${esc(c.title)}</h1><p class="subtitle">${esc(c.sub)}</p>`;
+  if (c.type === "o2") return renderO2(p, head);
+  if (c.type === "map") return renderMap(p, head);
+  if (c.type === "ccsr") return renderCcsr(p, head);
   if (c.type === "si") {
     p.innerHTML = head + `<div class="score-bar"><div class="st" id="cTxt">HF und RR eingeben</div><div class="sv" id="cV">–</div></div>
       <div class="group"><div class="field"><label for="siHf">HF</label><input id="siHf" type="number" inputmode="numeric" placeholder="/min"></div>
