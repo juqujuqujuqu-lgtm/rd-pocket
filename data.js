@@ -142,10 +142,18 @@ const DEFAULT_HOSPITALS = [
   { name: "Universitätsklinikum Marburg (UKGM)", city: "Marburg", lat: 50.8167, lon: 8.8086 },
   { name: "Ev. Krankenhaus Mittelhessen", city: "Gießen", lat: 50.5876, lon: 8.6710 },
   { name: "St. Josefs Krankenhaus Balserische Stiftung", city: "Gießen", lat: 50.5800, lon: 8.6850 },
-  { name: "Asklepios Klinik Lich", city: "Lich", lat: 50.5215, lon: 8.8160 },
-  { name: "Kreisklinik Biedenkopf", city: "Biedenkopf", lat: 50.9137, lon: 8.5313 },
   { name: "St. Vincenz-Krankenhaus Limburg", city: "Limburg", lat: 50.3870, lon: 8.0700 },
+  ...SIEGEN_HOSPITALS(),
 ];
+function SIEGEN_HOSPITALS() {
+  return [
+    { name: "St. Marien-Krankenhaus Siegen", city: "Siegen", lat: 50.8791, lon: 8.0298 },
+    { name: "Diakonie Klinikum Jung-Stilling", city: "Siegen", lat: 50.8517, lon: 8.0179 },
+    { name: "Kreisklinikum Siegen", city: "Siegen-Weidenau", lat: 50.9030, lon: 8.0203 },
+  ];
+}
+/* Kliniken, die aus der Liste genommen wurden (für vorhandene Installationen) */
+const REMOVED_HOSPITALS = ["Asklepios Klinik Lich", "Kreisklinik Biedenkopf"];
 
 /* Kinder – Orientierungswerte (angelehnt an PALS / gängige Kitteltaschenkarten) */
 const PEDS_TABLE = [

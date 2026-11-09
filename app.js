@@ -88,6 +88,11 @@ const LISTS = {
 };
 
 let hospitals = store.get("hospitalsV2", DEFAULT_HOSPITALS.map((x) => ({ ...x })));
+if (!store.get("hospSiegen", false)) { // einmalig: Lich/Biedenkopf raus, Siegener Kliniken rein
+  hospitals = hospitals.filter((x) => !REMOVED_HOSPITALS.includes(x.name));
+  SIEGEN_HOSPITALS().forEach((x) => { if (!hospitals.some((y) => y.name === x.name)) hospitals.push(x); });
+  store.set("hospitalsV2", hospitals); store.set("hospSiegen", true);
+}
 let config = Object.assign({ theme: "auto", region: 144001 }, store.get("config", {}));
 const pzc = store.get("pzc", { rmi: null, age: "", infant: false, urg: null });
 let recentPzc = store.get("recentPzc", []);

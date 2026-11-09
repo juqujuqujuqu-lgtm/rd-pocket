@@ -1,5 +1,5 @@
-﻿// Offline-Cache fÃ¼r RD Pocket. Version erhÃ¶hen, wenn Dateien geÃ¤ndert werden.
-const CACHE = "rdpocket-v6";
+// Offline-Cache fÃ¼r RD Pocket. Version erhÃ¶hen, wenn Dateien geÃ¤ndert werden.
+const CACHE = "rdpocket-v7";
 const FILES = ["./", "index.html", "styles.css", "app.js", "data.js", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
