@@ -1444,4 +1444,18 @@ function hospitalSheet(index, refresh) {
    Start
    ===================================================================== */
 showTab(ui.tab, { animate: false });
-if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+    // iOS holt die App oft nur aus dem Hintergrund zurück, statt sie neu zu starten → dann selbst nach Updates schauen
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // Neue Version aktiv → einmal neu laden (nicht während einer laufenden Reanimation)
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    const go = () => { if (reloading) return; reloading = true; location.reload(); };
+    if (!cpr.running) return go();
+    const t = setInterval(() => { if (!cpr.running) { clearInterval(t); go(); } }, 2000);
+  });
+}
