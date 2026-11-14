@@ -351,7 +351,10 @@ function openSheet({ title, confirmLabel, onConfirm, onClose, build }) {
   const end = (e) => {
     if (!drag || e.pointerId !== drag.id) return;
     const was = drag.active, v = drag.vt.get(); drag = null;
-    if (!was) return;
+    if (!was) { // nur getippt: unterbrochene Öffnen-Animation fortsetzen
+      if (!closed && Math.abs(y) > 0.5) anim = spring({ from: y, to: 0, damping: 1, response: 0.3, onUpdate: apply });
+      return;
+    }
     if (y + project(v) > H * 0.5) close(v);
     else anim = spring({ from: y, to: 0, velocity: v, damping: 0.8, response: 0.3, onUpdate: apply });
   };
@@ -1426,6 +1429,8 @@ function openSettings() {
             <div class="cell tappable" id="sImp"><div class="grow t" style="color:var(--blue)">Aus Zwischenablage einfügen</div></div>
           </div>
           <p class="section-footer">Kopierte Daten z. B. per Messenger schicken – der Empfänger fügt sie hier ein. Schlüsselcodes werden getrennt geteilt, damit sie nicht versehentlich mitgehen.</p>
+          <div class="section-header">Rückmeldung</div>
+          <div class="group"><div class="cell tappable" id="sFeedback"><div class="grow"><div class="t" style="color:var(--blue)">Rückmeldung senden …</div><div class="s">Verbesserungsvorschlag, Fehler oder veraltete Informationen</div></div><span class="chev">›</span></div></div>
           <div class="section-header">Entwicklung</div>
           <div class="group">
             <label class="cell switch-cell"><div class="grow"><div class="t">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div>
@@ -1438,6 +1443,7 @@ function openSettings() {
           <p class="disclaimer">RD Pocket ist eine private Merkhilfe und kein Medizinprodukt. Alle Angaben ohne Gewähr – maßgeblich sind die SOPs und Vorgaben des ÄLRD Lahn-Dill.</p>`;
         const ts = segmented([["auto", "Automatisch"], ["dark", "Dunkel"], ["light", "Hell"]], config.theme, (k) => { config.theme = k; store.set("config", config); applyTheme(); });
         ts.style.margin = "0"; $("#sTheme", body).append(ts);
+        $("#sFeedback", body).addEventListener("click", feedbackSheet);
         $("#sSosi", body).addEventListener("change", (e) => {
           config.devSosi = e.target.checked; store.set("config", config); lastSosi = null; draw();
           if (ui.tab === "pzc") showTab("pzc", { animate: false });
@@ -1539,6 +1545,39 @@ function renderHospital(p, index, refreshList) {
     $("#hEdit", p).addEventListener("click", () => hospitalSheet(index, () => { refreshList(); if (hospitals[index]) { Object.assign(x, hospitals[index]); draw(); } else popPage(); }));
   };
   draw();
+}
+
+/* Rückmeldung per Mail (öffnet die Mail-App mit fertigem Betreff und Text) */
+const FEEDBACK_TO = ["juqujuqujuqu", "gmail.com"].join("@");
+const APP_VERSION = "v13";
+const FEEDBACK_KINDS = [["idee", "Verbesserungsvorschlag"], ["fehler", "Fehler"], ["veraltet", "Veraltete Informationen"]];
+function feedbackSheet() {
+  let kind = "idee", text = "", name = store.get("fbName", "");
+  openSheet({
+    title: "Rückmeldung",
+    confirmLabel: "Senden",
+    onConfirm: () => {
+      if (!text.trim()) { toast("Bitte kurz beschreiben"); return false; }
+      store.set("fbName", name.trim());
+      const label = FEEDBACK_KINDS.find(([k]) => k === kind)[1];
+      const tabName = TITLES[ui.tab] || ui.tab;
+      const body = `${text.trim()}\n\n—\nArt: ${label}\n${name.trim() ? `Von: ${name.trim()}\n` : ""}Zuletzt geöffnet: ${tabName}\nApp: RD Pocket ${APP_VERSION}\nGerät: ${navigator.userAgent}`;
+      location.href = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(`RD Pocket – ${label}`)}&body=${encodeURIComponent(body)}`;
+      toast("Mail-App wird geöffnet …");
+    },
+    build: (body) => {
+      body.innerHTML = `
+        <div class="section-header">Art</div><div id="fbKind"></div>
+        <div class="section-header">Beschreibung</div>
+        <textarea class="ta" id="fbText" rows="6" placeholder="Was ist dir aufgefallen? Bei veralteten Infos bitte angeben, wo (z. B. „Kliniken → Klinikum Wetzlar“ oder „Algorithmen → K9“)."></textarea>
+        <div class="group" style="margin-top:.75rem"><div class="field"><label for="fbName">Name</label><input id="fbName" type="text" placeholder="optional" value="${esc(name)}" autocomplete="name"></div></div>
+        <p class="section-footer">„Senden“ öffnet deine Mail-App mit fertigem Betreff – dort nur noch abschicken. Mitgeschickt werden App-Version und Gerätetyp, keine Nummern, Codes oder Standortdaten.</p>`;
+      const seg = segmented(FEEDBACK_KINDS.map(([k, l]) => [k, l === "Veraltete Informationen" ? "Veraltet" : l === "Verbesserungsvorschlag" ? "Vorschlag" : l]), kind, (k) => { kind = k; haptic(); });
+      seg.style.margin = "0"; $("#fbKind", body).append(seg);
+      $("#fbText", body).addEventListener("input", (e) => (text = e.target.value));
+      $("#fbName", body).addEventListener("input", (e) => (name = e.target.value));
+    },
+  });
 }
 
 function hospitalSheet(index, refresh) {
