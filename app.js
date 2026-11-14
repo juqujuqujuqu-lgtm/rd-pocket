@@ -961,7 +961,25 @@ function haversine(a, b, c, d) {
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
-let lastPos = null, hospFilter = null;
+let lastPos = null, hospFilter = null, lastRoute = null;
+/* Fahrstrecke über OSRM (OpenStreetMap-Routing, ohne Schlüssel). Eine Anfrage liefert alle Kliniken.
+   Ergebnis: { km: [], min: [] } in Reihenfolge von hospitals, oder null (dann Luftlinie). */
+const ROUTERS = ["https://routing.openstreetmap.de/routed-car/table/v1/driving/", "https://router.project-osrm.org/table/v1/driving/"];
+async function fetchRoutes(pos) {
+  const coords = [`${pos.lon},${pos.lat}`, ...hospitals.map((h) => `${h.lon},${h.lat}`)].join(";");
+  for (const base of ROUTERS) {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 7000);
+      const r = await fetch(`${base}${coords}?sources=0&annotations=distance,duration`, { signal: ctl.signal });
+      clearTimeout(t);
+      const j = await r.json();
+      if (j.code !== "Ok") continue;
+      return { km: j.distances[0].slice(1).map((d) => (d == null ? null : d / 1000)), min: j.durations[0].slice(1).map((d) => (d == null ? null : d / 60)), n: hospitals.length };
+    } catch { /* nächsten Server versuchen */ }
+  }
+  return null;
+}
+const fmtMin = (m) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, "0")}`);
 const capOf = (x, k) => { const c = (HOSPITAL_INFO[x.name] || {}).caps || {}; const v = c[k]; return v == null ? null : typeof v === "object" ? v : { v }; };
 const HOSP_FILTERS = [["hkl", "Herzkatheter"], ["stroke", "Stroke Unit"], ["trauma", "Trauma"], ["nch", "Neurochirurgie"], ["paed", "Kinder"], ["geb", "Geburtshilfe"], ["psych", "Psychiatrie"], ["gefaess", "Gefäßchirurgie"]];
 const SHORT_CAP = { hkl: "HKL", stroke: "Stroke", trauma: "Trauma", nch: "NCH", paed: "Kinder", geb: "Geburt", psych: "Psych" };
@@ -977,9 +995,14 @@ function hospTags(x) {
 const mapsUrl = (x) => `https://maps.apple.com/?daddr=${x.lat},${x.lon}&dirflg=d`;
 function renderKlinik(el) {
   const code = pzcCode(), info = pzc.rmi ? rmiLookup.get(pzc.rmi) : null;
-  let list = hospitals.map((x, i) => ({ ...x, i, km: lastPos ? haversine(lastPos.lat, lastPos.lon, x.lat, x.lon) : null }));
+  const route = lastRoute && lastRoute.n === hospitals.length ? lastRoute : null;
+  let list = hospitals.map((x, i) => {
+    const air = lastPos ? haversine(lastPos.lat, lastPos.lon, x.lat, x.lon) : null;
+    const km = route && route.km[i] != null ? route.km[i] : air, min = route ? route.min[i] : null;
+    return { ...x, i, km, min, sortKey: min ?? (km != null ? km * 1.2 : null) };
+  });
   if (hospFilter) list = list.filter((x) => capOf(x, hospFilter)?.v === 1);
-  if (lastPos) list.sort((a, b) => a.km - b.km);
+  if (lastPos) list.sort((a, b) => a.sortKey - b.sortKey);
   el.innerHTML = `
     <div class="group">
       <div class="cell"><div class="grow"><div class="s">Aktueller PZC</div>
@@ -992,17 +1015,17 @@ function renderKlinik(el) {
     <p class="section-footer">IVENA zeigt live, welche Klinik für diesen PZC im gewählten Gebiet aufnahmebereit ist.</p>
 
     <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
-      <span>Kliniken${lastPos ? " · Luftlinie" : ""}</span>
+      <span>Kliniken${lastPos ? (route ? " · Fahrstrecke" : " · Luftlinie") : ""}</span>
       <button class="linkbtn" id="kLoc" style="padding:0;font-size:.8125rem;text-transform:none">${lastPos ? "Aktualisieren" : "Nach Entfernung sortieren"}</button>
     </div>
     <div class="hscroll cat-chips" id="kFilter">${[[null, "Alle"], ...HOSP_FILTERS].map(([k, l]) => `<button class="chip ${hospFilter === k ? "sel" : ""}" data-k="${k ?? ""}">${l}</button>`).join("")}</div>
     <div class="group">${list.length ? list.map((x) => `
       <div class="cell tappable hosp-row" data-h="${x.i}">
         <div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.city)}</div>${HOSPITAL_INFO[x.name] ? `<div class="htags">${hospTags(x)}</div>` : ""}</div>
-        ${x.km != null ? `<span class="dist">${x.km.toFixed(1).replace(".", ",")} km</span>` : ""}
+        ${x.km != null ? `<span class="dist">${x.min != null ? `<b>${fmtMin(x.min)}</b><br>` : ""}${x.km.toFixed(1).replace(".", ",")} km</span>` : ""}
         <a class="round blue" href="${mapsUrl(x)}" target="_blank" rel="noopener" aria-label="Navigation starten">${ICON.nav}</a>
       </div>`).join("") : `<div class="cell"><div class="grow s">Keine Klinik mit diesem Merkmal in deiner Liste.</div></div>`}</div>
-    <p class="section-footer">Antippen zeigt Fachabteilungen und Notfall-Kompetenzen, der blaue Knopf startet die Navigation. Kliniken änderst du in den Einstellungen.</p>`;
+    <p class="section-footer">${lastPos ? (route ? "Fahrstrecke und -zeit für PKW ohne Sonderrechte (OpenStreetMap-Routing), sortiert nach Fahrzeit. " : "Fahrstrecke gerade nicht abrufbar (kein Netz?) – angezeigt wird die Luftlinie. ") : ""}Antippen zeigt Fachabteilungen und Notfall-Kompetenzen, der blaue Knopf startet die Navigation. Kliniken änderst du in den Einstellungen.</p>`;
   $$("#kFilter .chip", el).forEach((b) => b.addEventListener("click", () => { hospFilter = b.dataset.k || null; haptic(); renderKlinik(el); }));
   $$(".hosp-row", el).forEach((r) => r.addEventListener("click", (e) => {
     if (e.target.closest("a")) return;
@@ -1018,7 +1041,13 @@ function renderKlinik(el) {
     if (!navigator.geolocation) return toast("Standort nicht verfügbar");
     toast("Standort wird bestimmt …");
     navigator.geolocation.getCurrentPosition(
-      (pos) => { lastPos = { lat: pos.coords.latitude, lon: pos.coords.longitude }; renderKlinik(el); },
+      async (pos) => {
+        lastPos = { lat: pos.coords.latitude, lon: pos.coords.longitude }; lastRoute = null;
+        renderKlinik(el); toast("Fahrstrecken werden berechnet …");
+        lastRoute = await fetchRoutes(lastPos);
+        if (el.isConnected) renderKlinik(el);
+        if (!lastRoute) toast("Fahrstrecke nicht verfügbar – Luftlinie");
+      },
       () => toast("Standortfreigabe fehlt"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   });
 }

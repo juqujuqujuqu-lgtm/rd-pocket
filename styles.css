@@ -486,6 +486,8 @@ input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border:
 .htags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
 .htag { font-size: .6875rem; font-weight: 600; padding: .1rem .4rem; border-radius: 6px; background: var(--fill); color: var(--label-2); }
 .hosp-row .round { flex: none; }
+.hosp-row .dist { text-align: right; line-height: 1.25; font-variant-numeric: tabular-nums; flex: none; }
+.hosp-row .dist b { color: var(--label); font-weight: 600; font-size: 1rem; }
 .btn svg { width: 1.15rem; height: 1.15rem; flex: none; }
 .cap-row { min-height: 2.5rem; padding-top: .5rem; padding-bottom: .5rem; }
 .cap-sym { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .85rem; }
