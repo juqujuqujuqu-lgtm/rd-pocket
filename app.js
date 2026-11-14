@@ -127,9 +127,9 @@ function setNav(cfg = {}) {
 function onScroll() { navbar.classList.toggle("scrolled", scrollY > 38); }
 addEventListener("scroll", onScroll, { passive: true });
 
-const TABS = ["nummern", "codes", "tools", "pzc", "kinder", "schema"];
-const TITLES = { nummern: "Nummern", codes: "Schlüsselcodes", tools: "Tools", pzc: "PZC", kinder: "Kinder", schema: "Schemata" };
-const RENDER = {};
+const TABS = ["nummern", "codes", "algo", "tools", "pzc", "kinder", "schema"];
+const TITLES = { nummern: "Nummern", codes: "Schlüsselcodes", algo: "Algorithmen", tools: "Tools", pzc: "PZC", kinder: "Kinder", schema: "Schemata" };
+const RENDER = { algo: (p) => renderAlgoTab(p) };
 const settingsBtn = { icon: ICON.gear, aria: "Einstellungen", onClick: () => openSettings() };
 let renderingTab = null;
 function rootNav(extraRight = []) { return { title: TITLES[renderingTab || ui.tab], left: [settingsBtn], right: extraRight }; }

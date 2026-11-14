@@ -1,6 +1,8 @@
 // Offline-Cache für RD Pocket. Version erhöhen, wenn Dateien geändert werden.
-const CACHE = "rdpocket-v8";
-const FILES = ["./", "index.html", "styles.css", "app.js", "data.js", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
+const CACHE = "rdpocket-v9";
+const FILES = ["./", "index.html", "styles.css", "app.js", "data.js", "algos-k.js", "algos-m.js", "algos-v.js", "algo.js",
+  "manifest.webmanifest", "icon-180.png", "icon-512.png"];
+// Originalseiten (orig/*.jpg) werden beim ersten Ansehen bzw. über „offline speichern“ in den Cache gelegt.
 
 self.addEventListener("install", (e) => {
   // cache: "reload" umgeht den HTTP-Cache (GitHub Pages: max-age=600), sonst landen alte Dateien im neuen Cache
