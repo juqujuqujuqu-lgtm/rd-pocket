@@ -482,6 +482,18 @@ input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border:
 .orig-wrap { display: block; margin-bottom: .8rem; border-radius: 10px; overflow: hidden; background: #fff; box-shadow: 0 0 0 .5px var(--sep); }
 .orig-img { display: block; width: 100%; height: auto; }
 
+/* ============ Kliniken ============ */
+.htags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
+.htag { font-size: .6875rem; font-weight: 600; padding: .1rem .4rem; border-radius: 6px; background: var(--fill); color: var(--label-2); }
+.hosp-row .round { flex: none; }
+.btn svg { width: 1.15rem; height: 1.15rem; flex: none; }
+.cap-row { min-height: 2.5rem; padding-top: .5rem; padding-bottom: .5rem; }
+.cap-sym { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .85rem; }
+.cap-row.yes .cap-sym { background: #34c759; color: #fff; }
+.cap-row.no .cap-sym { background: var(--fill); color: var(--label-2); }
+.cap-row.no .t, .cap-row.unk .t { color: var(--label-2); }
+.cap-row.unk .cap-sym { background: transparent; color: var(--label-3); box-shadow: inset 0 0 0 1.5px var(--label-3); }
+
 /* ============ Accessibility ============ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .12s !important; }

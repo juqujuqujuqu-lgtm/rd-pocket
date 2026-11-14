@@ -961,10 +961,24 @@ function haversine(a, b, c, d) {
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
-let lastPos = null;
+let lastPos = null, hospFilter = null;
+const capOf = (x, k) => { const c = (HOSPITAL_INFO[x.name] || {}).caps || {}; const v = c[k]; return v == null ? null : typeof v === "object" ? v : { v }; };
+const HOSP_FILTERS = [["hkl", "Herzkatheter"], ["stroke", "Stroke Unit"], ["trauma", "Trauma"], ["nch", "Neurochirurgie"], ["paed", "Kinder"], ["geb", "Geburtshilfe"], ["psych", "Psychiatrie"], ["gefaess", "Gefäßchirurgie"]];
+const SHORT_CAP = { hkl: "HKL", stroke: "Stroke", trauma: "Trauma", nch: "NCH", paed: "Kinder", geb: "Geburt", psych: "Psych" };
+function hospTags(x) {
+  return Object.keys(SHORT_CAP).filter((k) => capOf(x, k)?.v === 1).map((k) => {
+    let t = SHORT_CAP[k];
+    const d = capOf(x, k).d || "";
+    if (k === "trauma") { const m = d.match(/überregional|regional|lokal/); if (m) t += " " + { "überregional": "überreg.", regional: "reg.", lokal: "lokal" }[m[0]]; }
+    if (k === "stroke" && /überregional/.test(d)) t += " überreg.";
+    return `<span class="htag">${t}</span>`;
+  }).join("");
+}
+const mapsUrl = (x) => `https://maps.apple.com/?daddr=${x.lat},${x.lon}&dirflg=d`;
 function renderKlinik(el) {
   const code = pzcCode(), info = pzc.rmi ? rmiLookup.get(pzc.rmi) : null;
-  let list = hospitals.map((x) => ({ ...x, km: lastPos ? haversine(lastPos.lat, lastPos.lon, x.lat, x.lon) : null }));
+  let list = hospitals.map((x, i) => ({ ...x, i, km: lastPos ? haversine(lastPos.lat, lastPos.lon, x.lat, x.lon) : null }));
+  if (hospFilter) list = list.filter((x) => capOf(x, hospFilter)?.v === 1);
   if (lastPos) list.sort((a, b) => a.km - b.km);
   el.innerHTML = `
     <div class="group">
@@ -978,16 +992,23 @@ function renderKlinik(el) {
     <p class="section-footer">IVENA zeigt live, welche Klinik für diesen PZC im gewählten Gebiet aufnahmebereit ist.</p>
 
     <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
-      <span>Navigation${lastPos ? " · Luftlinie" : ""}</span>
+      <span>Kliniken${lastPos ? " · Luftlinie" : ""}</span>
       <button class="linkbtn" id="kLoc" style="padding:0;font-size:.8125rem;text-transform:none">${lastPos ? "Aktualisieren" : "Nach Entfernung sortieren"}</button>
     </div>
-    <div class="group">${list.map((x) => `
-      <a class="cell tappable" href="https://maps.apple.com/?daddr=${x.lat},${x.lon}&dirflg=d" target="_blank" rel="noopener" style="text-decoration:none">
-        <div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.city)}</div></div>
+    <div class="hscroll cat-chips" id="kFilter">${[[null, "Alle"], ...HOSP_FILTERS].map(([k, l]) => `<button class="chip ${hospFilter === k ? "sel" : ""}" data-k="${k ?? ""}">${l}</button>`).join("")}</div>
+    <div class="group">${list.length ? list.map((x) => `
+      <div class="cell tappable hosp-row" data-h="${x.i}">
+        <div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.city)}</div>${HOSPITAL_INFO[x.name] ? `<div class="htags">${hospTags(x)}</div>` : ""}</div>
         ${x.km != null ? `<span class="dist">${x.km.toFixed(1).replace(".", ",")} km</span>` : ""}
-        <span class="round blue">${ICON.nav}</span>
-      </a>`).join("")}</div>
-    <p class="section-footer">Tippen startet die Navigation in Apple Karten. Kliniken änderst du in den Einstellungen.</p>`;
+        <a class="round blue" href="${mapsUrl(x)}" target="_blank" rel="noopener" aria-label="Navigation starten">${ICON.nav}</a>
+      </div>`).join("") : `<div class="cell"><div class="grow s">Keine Klinik mit diesem Merkmal in deiner Liste.</div></div>`}</div>
+    <p class="section-footer">Antippen zeigt Fachabteilungen und Notfall-Kompetenzen, der blaue Knopf startet die Navigation. Kliniken änderst du in den Einstellungen.</p>`;
+  $$("#kFilter .chip", el).forEach((b) => b.addEventListener("click", () => { hospFilter = b.dataset.k || null; haptic(); renderKlinik(el); }));
+  $$(".hosp-row", el).forEach((r) => r.addEventListener("click", (e) => {
+    if (e.target.closest("a")) return;
+    const x = hospitals[+r.dataset.h];
+    pushPage((pg) => renderHospital(pg, +r.dataset.h, () => renderKlinik(el)), detailNav(x.name, "PZC"));
+  }));
   $("#kRegion", el).addEventListener("change", (e) => {
     config.region = Number(e.target.value); store.set("config", config);
     $("#kIvena", el).href = ivenaUrl(code); toast("Gebiet: " + regionName());
@@ -1408,6 +1429,39 @@ function openSettings() {
   });
 }
 
+function renderHospital(p, index, refreshList) {
+  const x = hospitals[index], inf = HOSPITAL_INFO[x.name];
+  const capRow = ([k, label]) => {
+    const c = capOf(x, k);
+    const [cls, sym] = c == null ? ["unk", "?"] : c.v ? ["yes", "✓"] : ["no", "–"];
+    return `<div class="cell cap-row ${cls}"><span class="cap-sym">${sym}</span><div class="grow"><div class="t">${label}</div>${c?.d ? `<div class="s">${esc(c.d)}</div>` : ""}</div></div>`;
+  };
+  const draw = () => {
+    p.innerHTML = `
+      <h1 class="large-title" style="font-size:1.75rem">${esc(x.name)}</h1><p class="subtitle">${esc(x.city)}</p>
+      <div class="btn-row" style="margin-bottom:.5rem">
+        <a class="btn filled" href="${mapsUrl(x)}" target="_blank" rel="noopener" style="text-decoration:none">${ICON.nav} Navigation</a>
+        <button class="btn" id="hEdit">Bearbeiten</button>
+      </div>
+      ${inf ? `
+        ${inf.note ? `<div class="notice"><span class="ico">ⓘ</span><span>${esc(inf.note)}</span></div>` : ""}
+        ${inf.phone ? `<div class="section-header">Telefon</div><div class="group">${inf.phone.map(([l, n]) => `<a class="cell tappable" href="tel:${n.replace(/[^\d+]/g, "")}" style="text-decoration:none"><div class="grow"><div class="s">${esc(l)}</div><div class="t" style="color:var(--blue)">${esc(n)}</div></div></a>`).join("")}</div>` : ""}
+        <div class="section-header">Notfall-Kompetenzen</div>
+        <div class="group">${HOSP_CAPS.map(capRow).join("")}</div>
+        <p class="section-footer">✓ vorhanden · – nicht vorhanden bzw. nicht aufgeführt · ? keine Angabe gefunden</p>
+        <div class="section-header">Fachabteilungen</div>
+        <div class="algo-card"><ul class="ac-ul">${inf.depts.map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>
+        ${inf.centers ? `<div class="section-header">Zentren</div><div class="algo-card"><ul class="ac-ul">${inf.centers.map((d) => `<li>${esc(d)}</li>`).join("")}</ul></div>` : ""}`
+      : `<div class="notice"><span class="ico">ⓘ</span><span>Für diese Klinik sind keine Fachabteilungen hinterlegt. Eigene Infos kannst du unten als Notiz speichern.</span></div>`}
+      <div class="section-header">Eigene Notizen</div>
+      <div class="group"><textarea class="ta" id="hNote" rows="3" placeholder="z. B. Herzkatheter nur bis 16 Uhr, Zufahrt Notaufnahme über …">${esc(x.note || "")}</textarea></div>
+      <p class="section-footer">${inf ? `Stand 11/2026, recherchiert auf ${esc(inf.src)} – ohne Gewähr. Aktuelle Aufnahmebereitschaft immer über IVENA bzw. die Leitstelle.` : ""}</p>`;
+    $("#hNote", p).addEventListener("change", (e) => { hospitals[index].note = e.target.value.trim(); store.set("hospitalsV2", hospitals); toast("Notiz gespeichert"); });
+    $("#hEdit", p).addEventListener("click", () => hospitalSheet(index, () => { refreshList(); if (hospitals[index]) { Object.assign(x, hospitals[index]); draw(); } else popPage(); }));
+  };
+  draw();
+}
+
 function hospitalSheet(index, refresh) {
   const isNew = index == null;
   const x = isNew ? { name: "", city: "", lat: "", lon: "" } : { ...hospitals[index] };
@@ -1417,7 +1471,7 @@ function hospitalSheet(index, refresh) {
     onConfirm: () => {
       const lat = parseFloat(String(x.lat).replace(",", ".")), lon = parseFloat(String(x.lon).replace(",", "."));
       if (!x.name.trim() || isNaN(lat) || isNaN(lon)) { toast("Name und Koordinaten angeben"); return false; }
-      const v = { name: x.name.trim(), city: x.city.trim(), lat, lon };
+      const v = { name: x.name.trim(), city: x.city.trim(), lat, lon, ...(x.note ? { note: x.note } : {}) };
       if (isNew) hospitals.push(v); else hospitals[index] = v;
       store.set("hospitalsV2", hospitals); refresh(); if (ui.tab === "pzc" && ui.pzcSeg === "klinik") showTab("pzc", { animate: false });
     },

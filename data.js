@@ -152,6 +152,101 @@ function SIEGEN_HOSPITALS() {
     { name: "Kreisklinikum Siegen", city: "Siegen-Weidenau", lat: 50.9030, lon: 8.0203 },
   ];
 }
+/* Fachabteilungen & Notfall-Kompetenzen (recherchiert 11/2026 von den Klinik-Websites, ohne Gewähr).
+   caps: Wert 1 = vorhanden, 0 = nicht vorhanden/nicht gelistet, null bzw. fehlend = unbekannt;
+   als Objekt { v, d } mit Detailtext. */
+const HOSP_CAPS = [
+  ["zna", "Notaufnahme"], ["hkl", "Herzkatheter"], ["cpu", "Chest Pain Unit"], ["stroke", "Stroke Unit"],
+  ["thromb", "Thrombektomie"], ["trauma", "Traumazentrum"], ["nch", "Neurochirurgie"], ["paed", "Kinderklinik"],
+  ["geb", "Geburtshilfe"], ["psych", "Psychiatrie"], ["gefaess", "Gefäßchirurgie"], ["its", "Intensivstation"], ["heli", "Hubschrauber-Landeplatz"],
+];
+const HOSPITAL_INFO = {
+  "Klinikum Wetzlar": {
+    caps: { zna: { v: 1, d: "rund um die Uhr, Schockraum" }, hkl: { v: 1, d: "Herzkatheterzentrum, 3 Messplätze (24/7 nicht angegeben)" }, stroke: { v: 1, d: "zertifiziert, 16 Monitorplätze" },
+      trauma: { v: 1, d: "regional (DGU)" }, nch: 0, paed: 0, geb: 1, psych: 0, gefaess: { v: 1, d: "Gefäßzentrum, Angiologie" }, its: 1 },
+    depts: ["Allgemeine, Viszerale und Onkologische Chirurgie", "Anästhesiologie und Intensivmedizin", "Angiologie", "Diagnostische und Interventionelle Radiologie", "Gefäßchirurgie", "Gynäkologie und Geburtshilfe", "Hämatologie / Onkologie und Palliativmedizin", "Medizinische Klinik I (Kardiologie, Angiologie, Pulmologie, Nephrologie, Dialyse, Intensivmedizin)", "Medizinische Klinik II (Gastroenterologie, Endoskopie)", "Neurologie mit Stroke Unit", "Plastische, Ästhetische und Handchirurgie", "Strahlentherapie und Radioonkologie", "Unfallchirurgie und Orthopädie", "Urologie, Kinderurologie und Urologische Onkologie", "Zentrale Notaufnahme"],
+    centers: ["Regionales Traumazentrum", "Gefäßzentrum Wetzlar", "Brustzentrum Lahn-Dill", "Onkologisches Zentrum Lahn-Dill", "Mittelhessisches Darmzentrum", "Endoprothetikzentrum"],
+    src: "lahn-dill-kliniken.de",
+  },
+  "BDH-Klinik Braunfels": {
+    caps: { stroke: { v: 1, d: "6 zertifizierte Überwachungsbetten, CT/MRT rund um die Uhr, Lyse" }, trauma: 0, paed: 0, geb: 0, psych: 0, gefaess: 0, its: 1 },
+    depts: ["Neurologische Akutbehandlung", "Stroke Unit", "Intensivmedizin", "Neurologische Frührehabilitation (Phase B)", "Neurologische Rehabilitation"],
+    note: "Neurologisches Fachkrankenhaus – keine allgemeine Notaufnahme angegeben.",
+    src: "bdh-klinik-braunfels.de",
+  },
+  "Dill-Kliniken Dillenburg": {
+    caps: { zna: { v: 1, d: "Manchester-Triage, Schockraum" }, stroke: 0, trauma: { v: 1, d: "lokal (DGU)" }, nch: 0, paed: 0, geb: 0, psych: 0, gefaess: 1, its: 1 },
+    depts: ["Allgemeine, Viszerale und Onkologische Chirurgie", "Anästhesie, Intensiv- und Notfallmedizin", "Augenheilkunde", "Gefäßchirurgie", "Innere Medizin", "Orthopädie und Unfallchirurgie", "Radiologie Lahn-Dill", "Stationäre Schmerztherapie", "Urologie", "Zentrale Notaufnahme"],
+    centers: ["Lokales Traumazentrum"],
+    src: "lahn-dill-kliniken.de",
+  },
+  "Universitätsklinikum Gießen (UKGM)": {
+    caps: { zna: { v: 1, d: "rund um die Uhr; Kinder-, geburtshilfliche und Herznotfälle in den Spezialabteilungen" }, hkl: { v: 1, d: "Kardiologie-Angiologie mit Intensivstation (24/7 nicht explizit angegeben)" },
+      stroke: { v: 1, d: "zertifiziert, überregionales neurovaskuläres Zentrum" }, trauma: { v: 1, d: "überregional (DGU), AltersTraumaZentrum, SAV" }, nch: 1,
+      paed: { v: 1, d: "Kinderklinik inkl. Neonatologie, Kinderchirurgie, Kinderherzzentrum" }, geb: 1, psych: 1, gefaess: { v: 1, d: "Herz-, Kinderherz- und Gefäßchirurgie" }, its: { v: 1, d: "inkl. ARDS-/ECMO-Center" } },
+    depts: ["Allgemein-, Viszeral-, Thorax- und Transplantationschirurgie", "Unfall-, Hand- und Wiederherstellungschirurgie", "Herz-, Kinderherz- und Gefäßchirurgie", "Neurochirurgie", "Orthopädie und Orthopädische Chirurgie", "Mund-, Kiefer- und Gesichtschirurgie", "Urologie, Kinderurologie und Andrologie", "Anästhesiologie und operative Intensivmedizin", "Kardiologie-Angiologie", "Pneumologie, Gastroenterologie, Nephrologie, internistische Intensivmedizin", "Endokrinologie, Diabetologie, Stoffwechsel", "Hämatologie-Onkologie", "Infektiologie", "Neurologie", "Neuroradiologie", "Psychiatrie und Psychotherapie", "Psychosomatik und Psychotherapie", "Allgemeine Pädiatrie und Neonatologie", "Pädiatrische Kardiologie und Intensivmedizin", "Kinderchirurgie", "Pädiatrische Neurologie", "Pädiatrische Hämatologie und Onkologie", "Frauenheilkunde und Geburtshilfe", "Augenheilkunde", "HNO", "Dermatologie und Allergologie", "Radiologie, Strahlentherapie, Nuklearmedizin"],
+    centers: ["Überregionales Traumazentrum", "Neurovaskuläres Zentrum", "Kinderherzzentrum", "ARDS-ECMO Center", "Transplantationszentrum"],
+    phone: [["Vermittlung", "0641 985-52900"]],
+    src: "ukgm.de",
+  },
+  "Universitätsklinikum Marburg (UKGM)": {
+    caps: { zna: { v: 1, d: "Zentrum für Notfallmedizin, Kinder-Notaufnahme integriert" }, hkl: { v: 1, d: "Kardiologie, Cardiac Arrest Center (24/7 nicht explizit angegeben)" },
+      trauma: { v: 1, d: "überregional (DGU), 2 Schockräume" }, nch: { v: 1, d: "inkl. Schädelbasiszentrum" }, paed: { v: 1, d: "Kinder- und Jugendmedizin, Kinderchirurgie" },
+      geb: { v: 1, d: "Perinatalzentrum Level I" }, psych: { v: 1, d: "inkl. Kinder- und Jugendpsychiatrie" }, gefaess: 1, its: 1 },
+    depts: ["Visceral-, Thorax- und Gefäßchirurgie", "Orthopädie und Unfallchirurgie", "Herz- und thorakale Gefäßchirurgie", "Neurochirurgie", "Urologie", "Mund-, Kiefer- und Gesichtschirurgie", "Anästhesiologie und operative Intensivmedizin", "Kardiologie", "Pneumologie", "Gastroenterologie, Endokrinologie, Infektiologie", "Hämatologie, Onkologie und Immunologie", "Nephrologie", "Neurologie", "Neuroradiologie", "Psychiatrie und Psychotherapie", "Psychosomatik", "Kinder- und Jugendmedizin", "Kinder- und Jugendpsychiatrie", "Kinderchirurgie und Kinderurologie", "Frauenheilkunde und Geburtshilfe", "Augenheilkunde", "HNO", "Dermatologie", "Radiologie, Strahlentherapie, Nuklearmedizin"],
+    centers: ["Zentrum für Notfallmedizin", "Überregionales Traumazentrum", "Perinatalzentrum Level I", "Cardiac Arrest Center", "Epilepsiezentrum", "Schädelbasiszentrum"],
+    src: "ukgm.de",
+  },
+  "Ev. Krankenhaus Mittelhessen": {
+    caps: { zna: { v: 1, d: "Klinik für Akut- und Notfallmedizin, 24 h" }, hkl: { v: 1, d: "24-h-Rufdienst, 2 Linksherzkatheter-Messplätze" }, trauma: { v: 1, d: "DGU-Siegel (Stufe nicht angegeben), Alterstraumazentrum" },
+      nch: 0, paed: 0, geb: 0, psych: 0, gefaess: 1, its: { v: 1, d: "inkl. IMC und Weaning" } },
+    depts: ["Klinik für Akut- und Notfallmedizin", "Allgemein-, Viszeral- und Endokrine Chirurgie", "Gefäßchirurgie", "Orthopädie, Unfallchirurgie und Wirbelsäulenchirurgie", "Plastische, Ästhetische, Rekonstruktive und Handchirurgie", "Medizinische Klinik I: Gastroenterologie, Diabetologie, Geriatrie", "Medizinische Klinik II: Kardiologie und Angiologie", "Medizinische Klinik III: Pneumologie", "Anästhesie, Intensivmedizin und Schmerztherapie", "Interventionelle Radiologie", "Urologie (Belegabteilung)"],
+    centers: ["Alterstraumatologisches Zentrum"],
+    phone: [["Notaufnahme", "0641 9606-260"]],
+    src: "ekm-gi.de",
+  },
+  "St. Josefs Krankenhaus Balserische Stiftung": {
+    caps: { geb: 1, its: 1 },
+    depts: ["Innere Medizin und Intensivmedizin", "Geriatrie (inkl. Alterstraumatologie, Tagesklinik)", "Chirurgie", "Orthopädie", "Frauenheilkunde und Geburtshilfe", "Anästhesie und operative Intensivmedizin", "HNO"],
+    note: "Website nicht erreichbar – Angaben aus Klinikverzeichnissen (krankenhaus.de, klinikradar.de), bitte prüfen.",
+    src: "krankenhaus.de",
+  },
+  "St. Vincenz-Krankenhaus Limburg": {
+    caps: { zna: { v: 1, d: "rund um die Uhr, umfassende Notfallversorgung (Stufe 3), Schockraum" }, hkl: { v: 1, d: "24-h-Bereitschaft, Cardiac Arrest Center" },
+      stroke: { v: 1, d: "regional, 10 Betten" }, trauma: { v: 1, d: "regional (DGU)" }, nch: 0, paed: { v: 1, d: "Kinder- und Jugendmedizin mit Neonatologie" },
+      geb: { v: 1, d: "perinataler Schwerpunkt, ab 32+0 SSW" }, psych: 0, gefaess: { v: 1, d: "zertifiziertes Gefäßzentrum" }, its: 1 },
+    depts: ["Allgemein- und Viszeralchirurgie, Proktologie", "Anästhesie und Intensivmedizin", "Diagnostische und Interventionelle Radiologie", "Frauenklinik inkl. Geburtshilfe", "Gastroenterologie, Diabetologie und Hepatologie", "Gefäßchirurgie, vaskuläre und endovaskuläre Chirurgie", "HNO (Belegabteilung)", "Hämatologie, Internistische Onkologie und Palliativmedizin", "Kardiologie, Pneumologie und Internistische Intensivmedizin", "Kinder- und Jugendmedizin", "Neurologie mit Stroke Unit", "Nephrologie und Hypertensiologie", "Strahlentherapie und Radioonkologie", "Urologie und Kinderurologie", "Zentrum für Orthopädie und Traumatologie", "Zentrale Notaufnahme"],
+    centers: ["Regionales Traumazentrum", "Regionale Stroke Unit", "Cardiac Arrest Center", "Gefäßzentrum", "Brustzentrum"],
+    src: "st-vincenz.de",
+  },
+  "St. Marien-Krankenhaus Siegen": {
+    caps: { zna: { v: 1, d: "rund um die Uhr, 18 Plätze, Schockraum" }, hkl: { v: 1, d: "24/7-Messplatz, 3 Herzkatheterlabore" }, cpu: 1, nch: 0, paed: 0,
+      geb: { v: 1, d: "über 1.200 Geburten/Jahr" }, psych: 0, gefaess: { v: 1, d: "Sektion im Herz- und Gefäßzentrum" }, its: { v: 1, d: "interdisziplinär" }, heli: { v: 1, d: "24 h nutzbar" } },
+    depts: ["Kardiologie, Angiologie und internistische Intensivmedizin", "Kardiologie, Rhythmologie und Elektrophysiologie", "Allgemeine Innere Medizin, Gastroenterologie und Diabetologie", "Hämatologie, Medizinische Onkologie und Palliativmedizin", "Orthopädie, Unfallchirurgie und Sportverletzungen", "Allgemein- und Viszeralchirurgie", "Gynäkologie und Geburtshilfe", "Anästhesie, Intensiv-, Notfall- und Schmerzmedizin", "Radio-Onkologie und Strahlentherapie", "Diagnostische und interventionelle Radiologie", "Nuklearmedizin (Beleg)", "Zentrale Notaufnahme"],
+    centers: ["Herz- und Gefäßzentrum", "Chest Pain Unit", "Brustzentrum Siegen-Olpe"],
+    phone: [["Zentrale", "0271 231-0"]],
+    src: "marien-kliniken.de",
+  },
+  "Diakonie Klinikum Jung-Stilling": {
+    caps: { zna: { v: 1, d: "365 Tage rund um die Uhr" }, hkl: { v: 1, d: "Herzkatheterlabore (24/7 nicht angegeben)" }, trauma: { v: 1, d: "überregional (DGU)" },
+      nch: { v: 1, d: "inkl. Neurovaskuläres Zentrum (DGNC)" }, paed: { v: 1, d: "keine Kinderklinik, aber Neugeborenen-Intensivstation" }, geb: { v: 1, d: "Perinatalzentrum Level 1" },
+      psych: 0, gefaess: { v: 1, d: "inkl. Aortenzentrum Südwestfalen" }, its: 1, heli: 1 },
+    depts: ["Allgemein- und Viszeralchirurgie", "Anästhesiologie, Intensiv- und Notfallmedizin", "Unfall- und Wiederherstellungschirurgie", "Neurochirurgie", "Gefäßchirurgie", "Mund-, Kiefer- und Gesichtschirurgie", "HNO-Heilkunde", "Urologie und Robotische Urologie", "Medizinische Klinik I: Gastroenterologie", "Medizinische Klinik II: Kardiologie, Angiologie, Rhythmologie", "Medizinische Klinik III: Onkologie, Hämatologie, Palliativmedizin", "Geriatrie", "Geburtshilfe und Pränatalmedizin", "Gynäkologie und gynäkologische Onkologie", "Radiologie", "Neuroradiologie", "Zentrale Notaufnahme"],
+    centers: ["Überregionales Traumazentrum", "Perinatalzentrum Level 1", "Neurovaskuläres Zentrum", "Aortenzentrum Südwestfalen", "Alterstraumazentrum", "Wirbelsäulenzentrum"],
+    phone: [["Notaufnahme", "0271 333-4513"]],
+    src: "jung-stilling.de",
+  },
+  "Kreisklinikum Siegen": {
+    caps: { zna: { v: 1, d: "24/7, ca. 40.000 Pat./Jahr, Schockraum" }, hkl: { v: 1, d: "24/7 bei Herzinfarkt" }, stroke: { v: 1, d: "überregional" }, thromb: 1,
+      trauma: { v: 1, d: "regional (DGU), VAV" }, nch: { v: 0, d: "keine eigene NCH – Neurotraumatologie und Wirbelsäulenchirurgie" },
+      paed: { v: 0, d: "→ DRK-Kinderklinik Siegen" }, geb: { v: 0, d: "→ St. Marien-Krankenhaus" }, psych: { v: 1, d: "Zentrum für seelische Gesundheit" }, gefaess: 0, its: 1 },
+    depts: ["Anästhesie, Intensivmedizin, Schmerztherapie und Notfallmedizin", "Medizinische Klinik I: Allgemeine Innere Medizin und Gastroenterologie", "Medizinische Klinik II: Lungenklinik", "Medizinische Klinik III: Kardiologie und Internistische Intensivmedizin", "Neurologie mit überregionaler Stroke Unit", "Geriatrie", "Unfallchirurgie, Orthopädie, Handchirurgie und Sportmedizin", "Neurotraumatologie und Wirbelsäulenchirurgie", "Thoraxchirurgie", "Viszeralmedizinische Chirurgie, Adipositaschirurgie", "Plastische, Rekonstruktive und Ästhetische Chirurgie", "Urologie", "Radiologie und Neuroradiologie", "Zentrum für seelische Gesundheit", "HNO (Belegabteilung)", "Zentrale Notaufnahme"],
+    centers: ["Regionales Traumazentrum", "Überregionale Stroke Unit", "Lungenkrebszentrum", "Weaningzentrum"],
+    phone: [["Herzkatheterlabor", "0271 705-601608"]],
+    src: "klinikum-siegen.de",
+  },
+};
+
 /* Kliniken, die aus der Liste genommen wurden (für vorhandene Installationen) */
 const REMOVED_HOSPITALS = ["Asklepios Klinik Lich", "Kreisklinik Biedenkopf"];
 
