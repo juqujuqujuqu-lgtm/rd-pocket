@@ -961,7 +961,7 @@ function haversine(a, b, c, d) {
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
-let lastPos = null, hospFilter = null, lastRoute = null;
+let lastPos = null, hospFilter = null, lastRoute = null, lastSosi = null;
 /* Fahrstrecke über OSRM (OpenStreetMap-Routing, ohne Schlüssel). Eine Anfrage liefert alle Kliniken.
    Ergebnis: { km: [], min: [] } in Reihenfolge von hospitals, oder null (dann Luftlinie). */
 const ROUTERS = ["https://routing.openstreetmap.de/routed-car/table/v1/driving/", "https://router.project-osrm.org/table/v1/driving/"];
@@ -979,6 +979,7 @@ async function fetchRoutes(pos) {
   }
   return null;
 }
+const sosiRange = (s) => { const a = Math.round(s.lo / 60), b = Math.max(a, Math.round(s.hi / 60)); return a === b ? `${a} min` : `${a}–${b} min`; };
 const fmtMin = (m) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, "0")}`);
 const capOf = (x, k) => { const c = (HOSPITAL_INFO[x.name] || {}).caps || {}; const v = c[k]; return v == null ? null : typeof v === "object" ? v : { v }; };
 const HOSP_FILTERS = [["hkl", "Herzkatheter"], ["stroke", "Stroke Unit"], ["trauma", "Trauma"], ["nch", "Neurochirurgie"], ["paed", "Kinder"], ["geb", "Geburtshilfe"], ["psych", "Psychiatrie"], ["gefaess", "Gefäßchirurgie"]];
@@ -999,7 +1000,8 @@ function renderKlinik(el) {
   let list = hospitals.map((x, i) => {
     const air = lastPos ? haversine(lastPos.lat, lastPos.lon, x.lat, x.lon) : null;
     const km = route && route.km[i] != null ? route.km[i] : air, min = route ? route.min[i] : null;
-    return { ...x, i, km, min, sortKey: min ?? (km != null ? km * 1.2 : null) };
+    const sosi = config.devSosi && lastSosi && lastSosi.length === hospitals.length ? lastSosi[i] : null;
+    return { ...x, i, km, min, sosi, sortKey: min ?? (km != null ? km * 1.2 : null) };
   });
   if (hospFilter) list = list.filter((x) => capOf(x, hospFilter)?.v === 1);
   if (lastPos) list.sort((a, b) => a.sortKey - b.sortKey);
@@ -1022,10 +1024,10 @@ function renderKlinik(el) {
     <div class="group">${list.length ? list.map((x) => `
       <div class="cell tappable hosp-row" data-h="${x.i}">
         <div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.city)}</div>${HOSPITAL_INFO[x.name] ? `<div class="htags">${hospTags(x)}</div>` : ""}</div>
-        ${x.km != null ? `<span class="dist">${x.min != null ? `<b>${fmtMin(x.min)}</b><br>` : ""}${x.km.toFixed(1).replace(".", ",")} km</span>` : ""}
+        ${x.km != null ? `<span class="dist">${x.min != null ? `<b>${fmtMin(x.min)}</b><br>` : ""}${x.km.toFixed(1).replace(".", ",")} km${x.sosi ? `<br><span class="sosi-chip">SoSi ${sosiRange(x.sosi)}</span>` : ""}</span>` : ""}
         <a class="round blue" href="${mapsUrl(x)}" target="_blank" rel="noopener" aria-label="Navigation starten">${ICON.nav}</a>
       </div>`).join("") : `<div class="cell"><div class="grow s">Keine Klinik mit diesem Merkmal in deiner Liste.</div></div>`}</div>
-    <p class="section-footer">${lastPos ? (route ? "Fahrstrecke und -zeit für PKW ohne Sonderrechte (OpenStreetMap-Routing), sortiert nach Fahrzeit. " : "Fahrstrecke gerade nicht abrufbar (kein Netz?) – angezeigt wird die Luftlinie. ") : ""}Antippen zeigt Fachabteilungen und Notfall-Kompetenzen, der blaue Knopf startet die Navigation. Kliniken änderst du in den Einstellungen.</p>`;
+    <p class="section-footer">${lastPos ? (route ? "Fahrstrecke und -zeit für PKW ohne Sonderrechte (OpenStreetMap-Routing), sortiert nach Fahrzeit. " + (config.devSosi ? (lastSosi ? "SoSi = geschätzte Fahrzeit mit Sonderrechten (Entwicklung). " : "SoSi-Schätzung wird berechnet … ") : "") : "Fahrstrecke gerade nicht abrufbar (kein Netz?) – angezeigt wird die Luftlinie. ") : ""}Antippen zeigt Fachabteilungen und Notfall-Kompetenzen, der blaue Knopf startet die Navigation. Kliniken änderst du in den Einstellungen.</p>`;
   $$("#kFilter .chip", el).forEach((b) => b.addEventListener("click", () => { hospFilter = b.dataset.k || null; haptic(); renderKlinik(el); }));
   $$(".hosp-row", el).forEach((r) => r.addEventListener("click", (e) => {
     if (e.target.closest("a")) return;
@@ -1046,7 +1048,11 @@ function renderKlinik(el) {
         renderKlinik(el); toast("Fahrstrecken werden berechnet …");
         lastRoute = await fetchRoutes(lastPos);
         if (el.isConnected) renderKlinik(el);
-        if (!lastRoute) toast("Fahrstrecke nicht verfügbar – Luftlinie");
+        if (!lastRoute) return toast("Fahrstrecke nicht verfügbar – Luftlinie");
+        if (config.devSosi) {
+          lastSosi = await sosiForAll(lastPos, hospitals);
+          if (el.isConnected) renderKlinik(el);
+        }
       },
       () => toast("Standortfreigabe fehlt"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   });
@@ -1420,10 +1426,26 @@ function openSettings() {
             <div class="cell tappable" id="sImp"><div class="grow t" style="color:var(--blue)">Aus Zwischenablage einfügen</div></div>
           </div>
           <p class="section-footer">Kopierte Daten z. B. per Messenger schicken – der Empfänger fügt sie hier ein. Schlüsselcodes werden getrennt geteilt, damit sie nicht versehentlich mitgehen.</p>
+          <div class="section-header">Entwicklung</div>
+          <div class="group">
+            <label class="cell switch-cell"><div class="grow"><div class="t">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div>
+              <div class="s">Schätzt in der Klinikliste die Fahrzeit mit Sonder- und Wegerechten (Ampeln, innerorts/außerorts)</div></div>
+              <input type="checkbox" class="ios-switch" id="sSosi" ${config.devSosi ? "checked" : ""}></label>
+            ${config.devSosi ? `<div class="cell tappable" id="sSosiReset"><div class="grow"><div class="t" style="color:var(--blue)">Kalibrierung zurücksetzen</div><div class="s">${sosiCalib().n} eingetragene Fahrten</div></div></div>` : ""}
+          </div>
+          <p class="section-footer">Grobe Schätzung, noch in Entwicklung. Grundlage: OpenStreetMap-Routing und Ampeln aus OpenStreetMap. Durch eingetragene echte Fahrzeiten (Klinik-Detailseite) wird sie genauer.</p>
           <div class="group" style="margin-top:1.5rem"><div class="cell tappable" id="sReset"><div class="grow t" style="color:var(--red)">Alles zurücksetzen</div></div></div>
           <p class="disclaimer">RD Pocket ist eine private Merkhilfe und kein Medizinprodukt. Alle Angaben ohne Gewähr – maßgeblich sind die SOPs und Vorgaben des ÄLRD Lahn-Dill.</p>`;
         const ts = segmented([["auto", "Automatisch"], ["dark", "Dunkel"], ["light", "Hell"]], config.theme, (k) => { config.theme = k; store.set("config", config); applyTheme(); });
         ts.style.margin = "0"; $("#sTheme", body).append(ts);
+        $("#sSosi", body).addEventListener("change", (e) => {
+          config.devSosi = e.target.checked; store.set("config", config); lastSosi = null; draw();
+          if (ui.tab === "pzc") showTab("pzc", { animate: false });
+        });
+        $("#sSosiReset", body)?.addEventListener("click", async () => {
+          if (!(await confirmSheet({ title: "Kalibrierung zurücksetzen?", message: "Alle eingetragenen Fahrzeiten werden gelöscht.", action: "Zurücksetzen" }))) return;
+          store.set("sosiCal", []); draw();
+        });
         $("#sRegion", body).addEventListener("change", (e) => { config.region = Number(e.target.value); store.set("config", config); if (ui.tab === "pzc") showTab("pzc", { animate: false }); });
         $$("[data-h]", body).forEach((c) => c.addEventListener("click", () => hospitalSheet(c.dataset.h === "new" ? null : +c.dataset.h, draw)));
         $("#sExp", body).addEventListener("click", () => copy(JSON.stringify({ rdpocket: 2, contacts: LISTS.nummern.items, groups: LISTS.nummern.groups, hospitals, region: config.region })));
@@ -1465,6 +1487,24 @@ function renderHospital(p, index, refreshList) {
     const [cls, sym] = c == null ? ["unk", "?"] : c.v ? ["yes", "✓"] : ["no", "–"];
     return `<div class="cell cap-row ${cls}"><span class="cap-sym">${sym}</span><div class="grow"><div class="t">${label}</div>${c?.d ? `<div class="s">${esc(c.d)}</div>` : ""}</div></div>`;
   };
+  const sosiBlock = () => {
+    const s = config.devSosi && lastSosi && lastSosi.length === hospitals.length ? lastSosi[index] : null;
+    if (!config.devSosi) return "";
+    if (!s) return `<div class="section-header">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div><p class="section-footer" style="margin-top:0">In der Klinikliste „Nach Entfernung sortieren“ antippen, dann wird hier die Schätzung angezeigt.</p>`;
+    const row = (l, v) => `<div class="cell"><div class="grow t">${l}</div><div class="val">${v}</div></div>`;
+    return `<div class="section-header">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div>
+      <div class="group kv">
+        ${row("Strecke", `${s.km.toFixed(1).replace(".", ",")} km`)}
+        ${row("Fahrzeit laut Routing", fmtMin(s.osrm / 60))}
+        ${row("Ampeln / Kreuzungen mit Ampel", s.signals == null ? "außerhalb Datenbereich" : s.signals)}
+        ${row("Anteil innerorts (Zeit)", `${Math.round(s.urbanShare * 100)} %`)}
+        ${row("Ohne Sonderrechte, realistisch", `ca. ${fmtMin(s.normal / 60)}`)}
+        <div class="cell sosi-res"><div class="grow t"><b>Mit Sonderrechten</b></div><div class="val"><b>${sosiRange(s)}</b></div></div>
+        ${row("Kalibrierung", s.n >= 2 ? `Faktor ${s.k.toFixed(2).replace(".", ",")} aus ${s.n} Fahrten` : `noch keine (${s.n}/2 Fahrten)`)}
+        <div class="cell tappable" id="hCal"><div class="grow t" style="color:var(--blue)">Tatsächliche Fahrzeit mit Sonderrechten eintragen …</div></div>
+      </div>
+      <p class="section-footer">Grobe Schätzung aus Routing, Ampeln (OpenStreetMap) und Straßentyp – keine verlässliche Vorhersage. Trag nach Fahrten zu dieser Klinik vom gleichen Startort die echte Zeit ein, dann passt sich die Schätzung an.</p>`;
+  };
   const draw = () => {
     p.innerHTML = `
       <h1 class="large-title" style="font-size:1.75rem">${esc(x.name)}</h1><p class="subtitle">${esc(x.city)}</p>
@@ -1472,6 +1512,7 @@ function renderHospital(p, index, refreshList) {
         <a class="btn filled" href="${mapsUrl(x)}" target="_blank" rel="noopener" style="text-decoration:none">${ICON.nav} Navigation</a>
         <button class="btn" id="hEdit">Bearbeiten</button>
       </div>
+      ${sosiBlock()}
       ${inf ? `
         ${inf.note ? `<div class="notice"><span class="ico">ⓘ</span><span>${esc(inf.note)}</span></div>` : ""}
         ${inf.phone ? `<div class="section-header">Telefon</div><div class="group">${inf.phone.map(([l, n]) => `<a class="cell tappable" href="tel:${n.replace(/[^\d+]/g, "")}" style="text-decoration:none"><div class="grow"><div class="s">${esc(l)}</div><div class="t" style="color:var(--blue)">${esc(n)}</div></div></a>`).join("")}</div>` : ""}
@@ -1485,6 +1526,15 @@ function renderHospital(p, index, refreshList) {
       <div class="section-header">Eigene Notizen</div>
       <div class="group"><textarea class="ta" id="hNote" rows="3" placeholder="z. B. Herzkatheter nur bis 16 Uhr, Zufahrt Notaufnahme über …">${esc(x.note || "")}</textarea></div>
       <p class="section-footer">${inf ? `Stand 11/2026, recherchiert auf ${esc(inf.src)} – ohne Gewähr. Aktuelle Aufnahmebereitschaft immer über IVENA bzw. die Leitstelle.` : ""}</p>`;
+    $("#hCal", p)?.addEventListener("click", async () => {
+      const s = lastSosi[index];
+      const v = await askText({ title: "Tatsächliche Fahrzeit", label: "Minuten", placeholder: "z. B. 12", confirmLabel: "Eintragen",
+        footer: `Fahrzeit mit Sonderrechten vom aktuellen Standort bis ${x.name}. Geschätzt waren ${sosiRange(s)}.` });
+      const min = parseFloat(String(v ?? "").replace(",", "."));
+      if (!(min > 0 && min < 240)) { if (v != null) toast("Bitte Minuten als Zahl eingeben"); return; }
+      const runs = store.get("sosiCal", []); runs.push({ pred: s.pred, actual: min * 60, h: x.name, t: Date.now() }); store.set("sosiCal", runs.slice(-50));
+      lastSosi = lastSosi.map((e) => (e ? { ...e, ...rescale(e) } : e)); refreshList(); draw(); toast("Fahrzeit gespeichert");
+    });
     $("#hNote", p).addEventListener("change", (e) => { hospitals[index].note = e.target.value.trim(); store.set("hospitalsV2", hospitals); toast("Notiz gespeichert"); });
     $("#hEdit", p).addEventListener("click", () => hospitalSheet(index, () => { refreshList(); if (hospitals[index]) { Object.assign(x, hospitals[index]); draw(); } else popPage(); }));
   };
