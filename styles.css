@@ -517,3 +517,21 @@ input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border:
   :root { --sep: rgba(255,255,255,.5); --label-2: rgba(235,235,245,.85); }
   .group, .card, .tapper, .timer { box-shadow: 0 0 0 1px var(--sep); }
 }
+
+/* ============ Willkommensseite (einmalig beim ersten Öffnen) ============ */
+.welcome {
+  position: fixed; inset: 0; z-index: 50; background: var(--bg); color: var(--label);
+  display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 2rem) 1.5rem calc(env(safe-area-inset-bottom) + 1.25rem);
+}
+.wc-inner { flex: 1; width: 100%; max-width: 28rem; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; }
+.wc-icon { width: 5.5rem; height: 5.5rem; border-radius: 22.5%; margin: 0 auto 1.5rem; display: block; box-shadow: 0 6px 24px rgba(0, 0, 0, .25); }
+.wc-title { font-size: 2rem; line-height: 1.15; font-weight: 800; letter-spacing: -.025em; text-align: center; margin: 0 0 1.25rem; text-wrap: balance; }
+.wc-text { font-size: 1.0625rem; line-height: 1.45; color: var(--label-2); text-align: center; margin: 0 0 .9rem; text-wrap: pretty; }
+.wc-text:first-of-type { color: var(--label); font-weight: 600; }
+.wc-hint { display: flex; gap: .75rem; align-items: center; margin-top: .9rem; padding: .875rem 1rem; border-radius: 14px; background: var(--cell); font-size: .9375rem; line-height: 1.4; color: var(--label-2); }
+.wc-hint b { color: var(--label); font-weight: 600; }
+.wc-hint-ic { flex: none; width: 2.25rem; height: 2.25rem; border-radius: 10px; background: var(--fill); color: var(--blue); display: grid; place-items: center; }
+.wc-hint-ic svg { width: 1.3rem; height: 1.3rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.wc-actions { width: 100%; max-width: 28rem; margin: 1.75rem auto 0; display: grid; gap: .625rem; }
+.wc-actions .wc-fb { background: none; }
