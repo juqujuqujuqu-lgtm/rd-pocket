@@ -11,6 +11,8 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem("rdpt_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("rdpt_" + k, JSON.stringify(v)); } catch {} },
 };
+// Erster Start überhaupt? (dann kein „Was ist neu“, es ist ja alles neu)
+const FIRST_RUN = (() => { try { return !Object.keys(localStorage).some((k) => k.startsWith("rdpt_")); } catch { return false; } })();
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
@@ -1410,7 +1412,7 @@ function renderCalc(p, c) {
 function openSettings() {
   openSheet({
     title: "Einstellungen",
-    build: (body) => {
+    build: (body, api) => {
       const draw = () => {
         body.innerHTML = `
           <div class="section-header">IVENA</div>
@@ -1431,6 +1433,8 @@ function openSettings() {
           <p class="section-footer">Kopierte Daten z. B. per Messenger schicken – der Empfänger fügt sie hier ein. Schlüsselcodes werden getrennt geteilt, damit sie nicht versehentlich mitgehen.</p>
           <div class="section-header">Rückmeldung</div>
           <div class="group"><div class="cell tappable" id="sFeedback"><div class="grow"><div class="t" style="color:var(--blue)">Rückmeldung senden …</div><div class="s">Verbesserungsvorschlag, Fehler oder veraltete Informationen</div></div><span class="chev">›</span></div></div>
+          <div class="section-header">Über</div>
+          <div class="group"><div class="cell tappable" id="sNews"><div class="grow"><div class="t" style="color:var(--blue)">Was ist neu</div><div class="s">RD Pocket ${esc(APP_VERSION)}</div></div><span class="chev">›</span></div></div>
           <div class="section-header">Entwicklung</div>
           <div class="group">
             <label class="cell switch-cell"><div class="grow"><div class="t">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div>
@@ -1475,6 +1479,7 @@ function openSettings() {
             toast("Übernommen"); draw(); showTab(ui.tab, { animate: false });
           } catch { toast("Keine gültigen RD-Pocket-Daten"); }
         });
+        $("#sNews", body).addEventListener("click", () => { api.close(); setTimeout(() => whatsNew({ force: true }), 350); });
         $("#sReset", body).addEventListener("click", async () => {
           if (!(await confirmSheet({ title: "Alles zurücksetzen?", message: "Alle eigenen Nummern, Schlüsselcodes, Kliniken und Einstellungen werden gelöscht. Das lässt sich nicht rückgängig machen.", action: "Alles löschen" }))) return;
           Object.keys(localStorage).filter((k) => k.startsWith("rdpt_")).forEach((k) => localStorage.removeItem(k));
@@ -1547,9 +1552,59 @@ function renderHospital(p, index, refreshList) {
   draw();
 }
 
+/* =====================================================================
+   WAS IST NEU – Banner, erscheint nach einem Update genau einmal
+   Bei neuer Version: APP_VERSION erhöhen und oben in CHANGELOG eintragen.
+   ===================================================================== */
+const APP_VERSION = "v14";
+const CHANGELOG = [
+  { v: "v14", date: "19.11.2026", items: [
+    "Neu: Dieses Banner zeigt nach einem Update einmalig, was sich geändert hat",
+    "Neuigkeiten lassen sich jederzeit in den Einstellungen erneut anzeigen",
+  ] },
+  { v: "v13", date: "14.11.2026", items: [
+    "Rückmeldung per Mail aus den Einstellungen",
+    "Fahrzeit mit Sonderrechten (Entwicklung, standardmäßig aus)",
+    "Kliniken: echte Fahrstrecke und Fahrzeit statt Luftlinie",
+  ] },
+];
+const verNum = (v) => parseInt(String(v || "").replace(/\D/g, ""), 10) || 0;
+function whatsNew({ force = false } = {}) {
+  const seen = store.get("seenVersion", null);
+  if (!force) {
+    if (seen === APP_VERSION) return;
+    store.set("seenVersion", APP_VERSION); // sofort merken → wirklich nur beim ersten Öffnen
+    if (FIRST_RUN) return;
+  }
+  let entries = force || seen == null ? CHANGELOG.slice(0, 1) : CHANGELOG.filter((e) => verNum(e.v) > verNum(seen));
+  entries = entries.slice(0, 3);
+  if (!entries.length) return;
+  $(".wn-banner")?.remove();
+  const el = h(`<div class="wn-banner" role="dialog" aria-label="Was ist neu">
+      <div class="wn-head"><div><div class="wn-kicker">Update · ${esc(APP_VERSION)}</div><div class="wn-title">Was ist neu</div></div>
+        <button class="wn-x" aria-label="Schließen">✕</button></div>
+      <div class="wn-body">${entries.map((e) => `
+        ${entries.length > 1 ? `<div class="wn-ver">${esc(e.v)} · ${esc(e.date)}</div>` : ""}
+        <ul>${e.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>`).join("")}</div>
+      <button class="btn filled block wn-ok">Verstanden</button></div>`);
+  document.body.append(el);
+  const close = () => {
+    if (el._closing) return; el._closing = true;
+    if (reducedMotion()) return el.remove();
+    el.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-30px) scale(.97)", opacity: 0 }], { duration: 200, easing: "ease-in" }).onfinish = () => el.remove();
+  };
+  $(".wn-ok", el).addEventListener("click", close);
+  $(".wn-x", el).addEventListener("click", close);
+  // nach oben wischen schließt ebenfalls
+  let y0 = null;
+  el.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchmove", (e) => { if (y0 != null && y0 - e.touches[0].clientY > 40) { y0 = null; close(); } }, { passive: true });
+  if (!reducedMotion()) el.animate([{ transform: "translateY(-40px) scale(.96)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 420, easing: "cubic-bezier(.2,.9,.25,1.15)" });
+  haptic();
+}
+
 /* Rückmeldung per Mail (öffnet die Mail-App mit fertigem Betreff und Text) */
 const FEEDBACK_TO = ["juqujuqujuqu", "gmail.com"].join("@");
-const APP_VERSION = "v13";
 const FEEDBACK_KINDS = [["idee", "Verbesserungsvorschlag"], ["fehler", "Fehler"], ["veraltet", "Veraltete Informationen"]];
 function feedbackSheet() {
   let kind = "idee", text = "", name = store.get("fbName", "");
@@ -1616,6 +1671,7 @@ function hospitalSheet(index, refresh) {
    Start
    ===================================================================== */
 showTab(ui.tab, { animate: false });
+setTimeout(() => whatsNew(), 600);
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
