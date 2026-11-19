@@ -1683,7 +1683,9 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!hadController || reloading) return;
     const go = () => { if (reloading) return; reloading = true; location.reload(); };
-    if (!cpr.running) return go();
-    const t = setInterval(() => { if (!cpr.running) { clearInterval(t); go(); } }, 2000);
+    // nicht während einer Reanimation und nicht, solange „Was ist neu“ offen ist
+    const busy = () => cpr.running || !!$(".wn-banner");
+    if (!busy()) return go();
+    const t = setInterval(() => { if (!busy()) { clearInterval(t); go(); } }, 500);
   });
 }
