@@ -517,3 +517,22 @@ input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border:
   :root { --sep: rgba(255,255,255,.5); --label-2: rgba(235,235,245,.85); }
   .group, .card, .tapper, .timer { box-shadow: 0 0 0 1px var(--sep); }
 }
+
+/* ============ Was ist neu (Banner nach Update) ============ */
+.wn-banner {
+  position: fixed; z-index: 30; left: .75rem; right: .75rem; max-width: 30rem; margin: 0 auto;
+  top: calc(env(safe-area-inset-top) + var(--navh) + .5rem);
+  background: var(--cell); color: var(--label); border-radius: 18px; box-shadow: var(--shadow);
+  border: 1px solid var(--bar-edge); padding: 1rem 1rem .875rem;
+  max-height: calc(100dvh - env(safe-area-inset-top) - var(--navh) - var(--tabh) - env(safe-area-inset-bottom) - 2rem);
+  display: flex; flex-direction: column; gap: .75rem;
+}
+.wn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.wn-kicker { font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--red); }
+.wn-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
+.wn-x { flex: none; width: 1.875rem; height: 1.875rem; border-radius: 50%; border: 0; background: var(--fill); color: var(--label-2); font-size: .8125rem; font-weight: 700; display: grid; place-items: center; }
+.wn-body { overflow-y: auto; -webkit-overflow-scrolling: touch; font-size: .9375rem; }
+.wn-body ul { margin: 0; padding-left: 1.15rem; display: grid; gap: .35rem; }
+.wn-body li::marker { color: var(--label-3); }
+.wn-ver { font-size: .8125rem; font-weight: 600; color: var(--label-2); margin: .75rem 0 .35rem; }
+.wn-ver:first-child { margin-top: 0; }
