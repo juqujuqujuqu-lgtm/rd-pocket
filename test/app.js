@@ -1556,8 +1556,11 @@ function renderHospital(p, index, refreshList) {
    WAS IST NEU – Banner, erscheint nach einem Update genau einmal
    Bei neuer Version: APP_VERSION erhöhen und oben in CHANGELOG eintragen.
    ===================================================================== */
-const APP_VERSION = "v14";
+const APP_VERSION = "v15";
 const CHANGELOG = [
+  { v: "v15", date: "19.11.2026", items: [
+    "„Was ist neu“ bleibt jetzt stehen, bis du es schließt – es verschwindet nicht mehr durch den automatischen Neustart nach einem Update",
+  ] },
   { v: "v14", date: "19.11.2026", items: [
     "Neu: Dieses Banner zeigt nach einem Update einmalig, was sich geändert hat",
     "Neuigkeiten lassen sich jederzeit in den Einstellungen erneut anzeigen",
@@ -1573,9 +1576,14 @@ function whatsNew({ force = false } = {}) {
   const seen = store.get("seenVersion", null);
   if (!force) {
     if (seen === APP_VERSION) return;
-    store.set("seenVersion", APP_VERSION); // sofort merken → wirklich nur beim ersten Öffnen
-    if (FIRST_RUN) return;
+    if (FIRST_RUN) { store.set("seenVersion", APP_VERSION); return; }
   }
+  // Erst als gelesen merken, wenn es geschlossen wurde – oder wenn man die App verlässt,
+  // nachdem es mind. 2 s sichtbar war. Ein Neuladen direkt nach dem Update lässt es also nicht verschwinden.
+  const shownAt = Date.now();
+  const markSeen = () => { if (!force) store.set("seenVersion", APP_VERSION); };
+  const onHide = () => { if (document.visibilityState === "hidden" && Date.now() - shownAt > 2000) markSeen(); };
+  document.addEventListener("visibilitychange", onHide);
   let entries = force || seen == null ? CHANGELOG.slice(0, 1) : CHANGELOG.filter((e) => verNum(e.v) > verNum(seen));
   entries = entries.slice(0, 3);
   if (!entries.length) return;
@@ -1590,6 +1598,7 @@ function whatsNew({ force = false } = {}) {
   document.body.append(el);
   const close = () => {
     if (el._closing) return; el._closing = true;
+    markSeen(); document.removeEventListener("visibilitychange", onHide);
     if (reducedMotion()) return el.remove();
     el.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-30px) scale(.97)", opacity: 0 }], { duration: 200, easing: "ease-in" }).onfinish = () => el.remove();
   };
