@@ -518,21 +518,20 @@ input[type=range].ios::-moz-range-thumb { width: 2.4rem; height: 1.6rem; border:
   .group, .card, .tapper, .timer { box-shadow: 0 0 0 1px var(--sep); }
 }
 
-/* ============ Was ist neu (Banner nach Update) ============ */
-.wn-banner {
-  position: fixed; z-index: 30; left: .75rem; right: .75rem; max-width: 30rem; margin: 0 auto;
-  top: calc(env(safe-area-inset-top) + var(--navh) + .5rem);
-  background: var(--cell); color: var(--label); border-radius: 18px; box-shadow: var(--shadow);
-  border: 1px solid var(--bar-edge); padding: 1rem 1rem .875rem;
-  max-height: calc(100dvh - env(safe-area-inset-top) - var(--navh) - var(--tabh) - env(safe-area-inset-bottom) - 2rem);
-  display: flex; flex-direction: column; gap: .75rem;
+/* ============ Willkommensseite (einmalig beim ersten Öffnen) ============ */
+.welcome {
+  position: fixed; inset: 0; z-index: 50; background: var(--bg); color: var(--label);
+  display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 2rem) 1.5rem calc(env(safe-area-inset-bottom) + 1.25rem);
 }
-.wn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
-.wn-kicker { font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--red); }
-.wn-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
-.wn-x { flex: none; width: 1.875rem; height: 1.875rem; border-radius: 50%; border: 0; background: var(--fill); color: var(--label-2); font-size: .8125rem; font-weight: 700; display: grid; place-items: center; }
-.wn-body { overflow-y: auto; -webkit-overflow-scrolling: touch; font-size: .9375rem; }
-.wn-body ul { margin: 0; padding-left: 1.15rem; display: grid; gap: .35rem; }
-.wn-body li::marker { color: var(--label-3); }
-.wn-ver { font-size: .8125rem; font-weight: 600; color: var(--label-2); margin: .75rem 0 .35rem; }
-.wn-ver:first-child { margin-top: 0; }
+.wc-inner { flex: 1; width: 100%; max-width: 28rem; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; }
+.wc-icon { width: 5.5rem; height: 5.5rem; border-radius: 22.5%; margin: 0 auto 1.5rem; display: block; box-shadow: 0 6px 24px rgba(0, 0, 0, .25); }
+.wc-title { font-size: 2rem; line-height: 1.15; font-weight: 800; letter-spacing: -.025em; text-align: center; margin: 0 0 1.25rem; text-wrap: balance; }
+.wc-text { font-size: 1.0625rem; line-height: 1.45; color: var(--label-2); text-align: center; margin: 0 0 .9rem; text-wrap: pretty; }
+.wc-text:first-of-type { color: var(--label); font-weight: 600; }
+.wc-hint { display: flex; gap: .75rem; align-items: center; margin-top: .9rem; padding: .875rem 1rem; border-radius: 14px; background: var(--cell); font-size: .9375rem; line-height: 1.4; color: var(--label-2); }
+.wc-hint b { color: var(--label); font-weight: 600; }
+.wc-hint-ic { flex: none; width: 2.25rem; height: 2.25rem; border-radius: 10px; background: var(--fill); color: var(--blue); display: grid; place-items: center; }
+.wc-hint-ic svg { width: 1.3rem; height: 1.3rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.wc-actions { width: 100%; max-width: 28rem; margin: 1.75rem auto 0; display: grid; gap: .625rem; }
+.wc-actions .wc-fb { background: none; }
