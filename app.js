@@ -1410,7 +1410,7 @@ function renderCalc(p, c) {
 function openSettings() {
   openSheet({
     title: "Einstellungen",
-    build: (body) => {
+    build: (body, api) => {
       const draw = () => {
         body.innerHTML = `
           <div class="section-header">IVENA</div>
@@ -1431,6 +1431,8 @@ function openSettings() {
           <p class="section-footer">Kopierte Daten z. B. per Messenger schicken – der Empfänger fügt sie hier ein. Schlüsselcodes werden getrennt geteilt, damit sie nicht versehentlich mitgehen.</p>
           <div class="section-header">Rückmeldung</div>
           <div class="group"><div class="cell tappable" id="sFeedback"><div class="grow"><div class="t" style="color:var(--blue)">Rückmeldung senden …</div><div class="s">Verbesserungsvorschlag, Fehler oder veraltete Informationen</div></div><span class="chev">›</span></div></div>
+          <div class="section-header">Über</div>
+          <div class="group"><div class="cell tappable" id="sNews"><div class="grow"><div class="t" style="color:var(--blue)">Willkommensseite anzeigen</div><div class="s">RD Pocket ${esc(APP_VERSION)}</div></div><span class="chev">›</span></div></div>
           <div class="section-header">Entwicklung</div>
           <div class="group">
             <label class="cell switch-cell"><div class="grow"><div class="t">Fahrzeit mit Sonderrechten <span class="dev-tag">Entwicklung</span></div>
@@ -1475,6 +1477,7 @@ function openSettings() {
             toast("Übernommen"); draw(); showTab(ui.tab, { animate: false });
           } catch { toast("Keine gültigen RD-Pocket-Daten"); }
         });
+        $("#sNews", body).addEventListener("click", () => { api.close(); setTimeout(() => welcome({ force: true }), 350); });
         $("#sReset", body).addEventListener("click", async () => {
           if (!(await confirmSheet({ title: "Alles zurücksetzen?", message: "Alle eigenen Nummern, Schlüsselcodes, Kliniken und Einstellungen werden gelöscht. Das lässt sich nicht rückgängig machen.", action: "Alles löschen" }))) return;
           Object.keys(localStorage).filter((k) => k.startsWith("rdp_")).forEach((k) => localStorage.removeItem(k));
@@ -1547,9 +1550,51 @@ function renderHospital(p, index, refreshList) {
   draw();
 }
 
+/* =====================================================================
+   WILLKOMMENSSEITE – erscheint einmal pro Gerät beim ersten Öffnen
+   ===================================================================== */
+const APP_VERSION = "v14";
+function welcome({ force = false } = {}) {
+  if (!force && store.get("welcomeSeen", false)) return;
+  if ($(".welcome")) return;
+  const shownAt = Date.now();
+  const markSeen = () => { if (!force) store.set("welcomeSeen", true); };
+  // gilt als gesehen, wenn geschlossen – oder wenn man die App nach mind. 2 s verlässt
+  const onHide = () => { if (document.visibilityState === "hidden" && Date.now() - shownAt > 2000) markSeen(); };
+  document.addEventListener("visibilitychange", onHide);
+  const el = h(`<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="wcTitle">
+      <div class="wc-inner">
+        <img class="wc-icon" src="icon-512.png" alt="">
+        <h1 class="wc-title" id="wcTitle">Herzlich Willkommen bei RD Pocket</h1>
+        <p class="wc-text">Diese App kann nur durch eure Rückmeldungen besser werden.</p>
+        <p class="wc-text">Wenn dir etwas auffällt – ein Fehler, eine veraltete Nummer oder Information oder eine Idee für etwas Neues –, schick bitte eine kurze Rückmeldung. Danke!</p>
+        <div class="wc-hint">
+          <span class="wc-hint-ic">${ICON.gear}</span>
+          <div>Rückmeldungen kannst du jederzeit über das <b>Zahnrad oben links</b> → <b>Rückmeldung senden</b> schicken.</div>
+        </div>
+      </div>
+      <div class="wc-actions">
+        <button class="btn filled block wc-go">Los geht’s</button>
+        <button class="btn block wc-fb">Rückmeldung senden</button>
+      </div></div>`);
+  document.body.append(el);
+  const close = (then) => {
+    if (el._closing) return; el._closing = true;
+    markSeen(); document.removeEventListener("visibilitychange", onHide);
+    const done = () => { el.remove(); then && then(); };
+    if (reducedMotion()) return done();
+    el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(1.04)" }], { duration: 240, easing: "ease-in" }).onfinish = done;
+  };
+  $(".wc-go", el).addEventListener("click", () => close());
+  $(".wc-fb", el).addEventListener("click", () => close(() => feedbackSheet()));
+  if (!reducedMotion()) {
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: "ease-out" });
+    $(".wc-inner", el).animate([{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }], { duration: 520, delay: 80, easing: "cubic-bezier(.2,.9,.25,1)", fill: "backwards" });
+  }
+}
+
 /* Rückmeldung per Mail (öffnet die Mail-App mit fertigem Betreff und Text) */
 const FEEDBACK_TO = ["juqujuqujuqu", "gmail.com"].join("@");
-const APP_VERSION = "v13";
 const FEEDBACK_KINDS = [["idee", "Verbesserungsvorschlag"], ["fehler", "Fehler"], ["veraltet", "Veraltete Informationen"]];
 function feedbackSheet() {
   let kind = "idee", text = "", name = store.get("fbName", "");
@@ -1616,6 +1661,7 @@ function hospitalSheet(index, refresh) {
    Start
    ===================================================================== */
 showTab(ui.tab, { animate: false });
+setTimeout(() => welcome(), 300);
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
@@ -1627,7 +1673,9 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!hadController || reloading) return;
     const go = () => { if (reloading) return; reloading = true; location.reload(); };
-    if (!cpr.running) return go();
-    const t = setInterval(() => { if (!cpr.running) { clearInterval(t); go(); } }, 2000);
+    // nicht während einer Reanimation und nicht, solange die Willkommensseite offen ist
+    const busy = () => cpr.running || !!$(".welcome");
+    if (!busy()) return go();
+    const t = setInterval(() => { if (!busy()) { clearInterval(t); go(); } }, 500);
   });
 }
