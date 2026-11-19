@@ -1,5 +1,5 @@
 // Offline-Cache für RD Pocket TEST (eigener Cache, löscht nur rdpocket-test-*). Version erhöhen, wenn Dateien geändert werden.
-const CACHE = "rdpocket-test-v5";
+const CACHE = "rdpocket-test-v6";
 const FILES = ["./", "index.html", "styles.css", "app.js", "data.js", "algos-k.js", "algos-m.js", "algos-v.js", "algo.js", "signals.js", "sosi.js",
   "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 // Originalseiten (orig/*.jpg) werden beim ersten Ansehen bzw. über „offline speichern“ in den Cache gelegt.
